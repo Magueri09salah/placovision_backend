@@ -55,7 +55,7 @@ class User extends Authenticatable
         return $this->account_type === 'particulier';
     }
 
-    public function isProfessionnel(): bool
+    public function     isProfessionnel(): bool
     {
         return $this->account_type === 'professionnel';
     }
@@ -71,5 +71,10 @@ class User extends Authenticatable
     public function projects()
     {
         return $this->hasMany(Project::class, 'created_by');
+    }
+
+        public function quotations()
+    {
+        return $this->hasMany(Quotation::class);
     }
 }

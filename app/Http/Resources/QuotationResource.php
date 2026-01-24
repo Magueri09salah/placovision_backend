@@ -7,33 +7,49 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class QuotationResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
-        'reference' => $this->reference,
-
-        // Client
-        'client_name' => $this->client_name,
-        'client_email' => $this->client_email,
-        'client_phone' => $this->client_phone,
-
-        // Chantier
-        'site_address' => $this->site_address,
-        'site_city' => $this->site_city,
-
-        // Devis
-        'work_type' => $this->work_type,
-        'total_surface' => $this->total_surface,
-        'estimated_amount' => $this->estimated_amount,
-
-        // Dates
-        'created_at' => $this->created_at->format('Y-m-d'),
+            'reference' => $this->reference,
+            
+            // Client
+            'client_name' => $this->client_name,
+            'client_email' => $this->client_email,
+            'client_phone' => $this->client_phone,
+            
+            // Site
+            'site_address' => $this->site_address,
+            'site_city' => $this->site_city,
+            'site_postal_code' => $this->site_postal_code,
+            
+            // Totaux
+            'total_ht' => (float) $this->total_ht,
+            'total_tva' => (float) $this->total_tva,
+            'total_ttc' => (float) $this->total_ttc,
+            'tva_rate' => (float) $this->tva_rate,
+            'discount_percent' => (float) $this->discount_percent,
+            'discount_amount' => (float) $this->discount_amount,
+            
+            // Statut
+            'status' => $this->status,
+            'status_label' => $this->status_label,
+            
+            // Dates
+            'validity_date' => $this->validity_date?->format('Y-m-d'),
+            'accepted_at' => $this->accepted_at?->format('Y-m-d'),
+            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+            
+            // Notes
+            'notes' => $this->notes,
+            
+            // Relations
+            'rooms' => QuotationRoomResource::collection($this->whenLoaded('rooms')),
+            
+            // Computed
+            'rooms_count' => $this->when($this->rooms, fn() => $this->rooms->count()),
+            'works_count' => $this->when($this->rooms, fn() => $this->rooms->sum(fn($r) => $r->works->count())),
         ];
     }
 }

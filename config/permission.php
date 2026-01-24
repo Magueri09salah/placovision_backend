@@ -95,6 +95,10 @@ return [
 
         'team_foreign_key' => 'team_id',
     ],
+    
+    'defaults' => [
+        'guard' => 'sanctum',
+    ],
 
     /*
      * When set to true, the method for checking permissions will be registered on the gate.

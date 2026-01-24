@@ -14,11 +14,18 @@ class RoleSeeder extends Seeder
      */
     public function run(): void
     {
-         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        Role::create(['name' => 'particulier']);
-        Role::create(['name' => 'admin_entreprise']);
-        Role::create(['name' => 'chef_chantier']);
-        Role::create(['name' => 'bureau']);
+        $roles = [
+            'particulier',
+            'admin_entreprise',
+            'chef_chantier',
+            'bureau',
+            'admin_platform'
+        ];
+
+        foreach ($roles as $role) {
+            Role::firstOrCreate(['name' => $role]);
+        }
     }
 }

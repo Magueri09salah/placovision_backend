@@ -3,17 +3,14 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\QuotationController;
+use App\Http\Controllers\Api\QuotationPdfController;
+use App\Http\Controllers\Api\Admin\ProductCategoryController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
 */
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -21,7 +18,17 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/auth/google', [AuthController::class, 'googleAuth']);
 Route::post('/auth/google/complete', [AuthController::class, 'googleAuthComplete']);
 
+// ============ OPTIONS (Public) ============
+Route::get('/quotations/options', [QuotationController::class, 'getOptions']);
+Route::post('/quotations/simulate', [QuotationController::class, 'simulate']);
+
+/*
+|--------------------------------------------------------------------------
+| Authenticated user routes
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth:sanctum')->group(function () {
+
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
@@ -34,8 +41,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/projects/{id}', [ProjectController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
 
+    Route::get('/quotations/stats', [QuotationController::class, 'stats']);
     Route::get('/quotations', [QuotationController::class, 'index']);
     Route::post('/quotations', [QuotationController::class, 'store']);
-    Route::get('/quotations/{quotation}', [QuotationController::class, 'show']);
-    Route::get('/quotations/{id}/pdf', [QuotationController::class, 'exportPdf']);
+    Route::get('/quotations/{id}', [QuotationController::class, 'show']);
+    Route::put('/quotations/{id}', [QuotationController::class, 'update']);
+    Route::delete('/quotations/{id}', [QuotationController::class, 'destroy']);
+
+     // Actions spéciales sur les devis
+    Route::post('/quotations/{id}/duplicate', [QuotationController::class, 'duplicate']);
+    Route::patch('/quotations/{id}/status', [QuotationController::class, 'updateStatus']);
+
+    // Modification des items (quantités)
+    Route::patch('/quotations/{id}/items/{itemId}', [QuotationController::class, 'updateItem']);
+    Route::post('/quotations/{id}/items/{itemId}/reset', [QuotationController::class, 'resetItem']);
+
+    Route::get('/quotations/{id}/pdf', [QuotationPdfController::class, 'generate']);
+    Route::get('/quotations/{id}/pdf/preview', [QuotationPdfController::class, 'preview']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Admin routes (Spatie Role)
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/admin/categories', [ProductCategoryController::class, 'store']);
 });
