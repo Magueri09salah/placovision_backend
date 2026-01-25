@@ -12,6 +12,7 @@ use App\Models\QuotationItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class QuotationController extends Controller
 {
@@ -28,11 +29,11 @@ class QuotationController extends Controller
             ->orderBy('created_at', 'desc');
 
         // Filtres
-        if ($request->has('status')) {
+        if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
 
-        if ($request->has('search')) {
+        if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('reference', 'like', "%{$search}%")
@@ -41,11 +42,11 @@ class QuotationController extends Controller
             });
         }
 
-        if ($request->has('date_from')) {
+        if ($request->has('date_from') && $request->date_from) {
             $query->whereDate('created_at', '>=', $request->date_from);
         }
 
-        if ($request->has('date_to')) {
+        if ($request->has('date_to') && $request->date_to) {
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
@@ -445,36 +446,200 @@ class QuotationController extends Controller
     }
 
     /**
-     * Statistiques des devis
+     * Statistiques des devis pour le Dashboard
      * GET /api/quotations/stats
      */
     public function stats(Request $request): JsonResponse
     {
         $user = $request->user();
+        $now = Carbon::now();
+        $startOfMonth = $now->copy()->startOfMonth();
+        $startOfLastMonth = $now->copy()->subMonth()->startOfMonth();
+        $endOfLastMonth = $now->copy()->subMonth()->endOfMonth();
 
-        $stats = [
-            'total' => Quotation::where('user_id', $user->id)->count(),
-            'draft' => Quotation::where('user_id', $user->id)->where('status', 'draft')->count(),
-            'sent' => Quotation::where('user_id', $user->id)->where('status', 'sent')->count(),
-            'accepted' => Quotation::where('user_id', $user->id)->where('status', 'accepted')->count(),
-            'rejected' => Quotation::where('user_id', $user->id)->where('status', 'rejected')->count(),
-            'total_accepted_amount' => Quotation::where('user_id', $user->id)
-                ->where('status', 'accepted')
-                ->sum('total_ttc'),
-            'total_pending_amount' => Quotation::where('user_id', $user->id)
-                ->whereIn('status', ['draft', 'sent'])
-                ->sum('total_ttc'),
-        ];
+        // ============ STATISTIQUES DE BASE ============
+        $baseQuery = Quotation::where('user_id', $user->id);
+        
+        // Compteurs par statut (tout le temps)
+        $total = (clone $baseQuery)->count();
+        $draft = (clone $baseQuery)->where('status', 'draft')->count();
+        $sent = (clone $baseQuery)->where('status', 'sent')->count();
+        $accepted = (clone $baseQuery)->where('status', 'accepted')->count();
+        $rejected = (clone $baseQuery)->where('status', 'rejected')->count();
+        $expired = (clone $baseQuery)->where('status', 'expired')->count();
+        
+        // Pending = sent (en attente de réponse)
+        $pending = $sent;
 
-        // Taux de conversion
-        $totalProcessed = $stats['accepted'] + $stats['rejected'];
-        $stats['conversion_rate'] = $totalProcessed > 0 
-            ? round(($stats['accepted'] / $totalProcessed) * 100, 1) 
+        // ============ CHIFFRE D'AFFAIRES ============
+        // CA total (devis acceptés)
+        $totalRevenue = (clone $baseQuery)
+            ->where('status', 'accepted')
+            ->sum('total_ttc');
+
+        // CA ce mois
+        $revenueThisMonth = (clone $baseQuery)
+            ->where('status', 'accepted')
+            ->where('accepted_at', '>=', $startOfMonth)
+            ->sum('total_ttc');
+
+        // CA mois dernier
+        $revenueLastMonth = (clone $baseQuery)
+            ->where('status', 'accepted')
+            ->whereBetween('accepted_at', [$startOfLastMonth, $endOfLastMonth])
+            ->sum('total_ttc');
+
+        // Variation CA
+        $revenueTrend = $revenueLastMonth > 0 
+            ? round((($revenueThisMonth - $revenueLastMonth) / $revenueLastMonth) * 100, 1)
+            : ($revenueThisMonth > 0 ? 100 : 0);
+
+        // ============ DEVIS CE MOIS ============
+        $quotationsThisMonth = (clone $baseQuery)
+            ->where('created_at', '>=', $startOfMonth)
+            ->count();
+
+        $quotationsLastMonth = (clone $baseQuery)
+            ->whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])
+            ->count();
+
+        $quotationsTrend = $quotationsLastMonth > 0
+            ? $quotationsThisMonth - $quotationsLastMonth
+            : $quotationsThisMonth;
+
+        // ============ TAUX DE CONVERSION ============
+        // Conversion = acceptés / (acceptés + refusés) * 100
+        $totalProcessed = $accepted + $rejected;
+        $conversionRate = $totalProcessed > 0 
+            ? round(($accepted / $totalProcessed) * 100, 1) 
             : 0;
 
+        // Conversion mois dernier
+        $acceptedLastMonth = (clone $baseQuery)
+            ->where('status', 'accepted')
+            ->whereBetween('accepted_at', [$startOfLastMonth, $endOfLastMonth])
+            ->count();
+        $rejectedLastMonth = (clone $baseQuery)
+            ->where('status', 'rejected')
+            ->whereBetween('updated_at', [$startOfLastMonth, $endOfLastMonth])
+            ->count();
+        $processedLastMonth = $acceptedLastMonth + $rejectedLastMonth;
+        $conversionLastMonth = $processedLastMonth > 0
+            ? round(($acceptedLastMonth / $processedLastMonth) * 100, 1)
+            : 0;
+
+        $conversionTrend = $conversionRate - $conversionLastMonth;
+
+        // ============ MONTANTS EN ATTENTE ============
+        $pendingAmount = (clone $baseQuery)
+            ->whereIn('status', ['draft', 'sent'])
+            ->sum('total_ttc');
+
+        // ============ ÉVOLUTION MENSUELLE (6 derniers mois) ============
+        $monthlyData = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $monthStart = $now->copy()->subMonths($i)->startOfMonth();
+            $monthEnd = $now->copy()->subMonths($i)->endOfMonth();
+            $monthName = $monthStart->locale('fr')->isoFormat('MMM');
+
+            $monthRevenue = Quotation::where('user_id', $user->id)
+                ->where('status', 'accepted')
+                ->whereBetween('accepted_at', [$monthStart, $monthEnd])
+                ->sum('total_ttc');
+
+            $monthQuotations = Quotation::where('user_id', $user->id)
+                ->whereBetween('created_at', [$monthStart, $monthEnd])
+                ->count();
+
+            $monthlyData[] = [
+                'name' => ucfirst($monthName),
+                'ca' => round($monthRevenue, 0),
+                'devis' => $monthQuotations,
+            ];
+        }
+
+        // ============ RÉPARTITION PAR STATUT ============
+        $statusDistribution = [
+            ['name' => 'Acceptés', 'value' => $accepted, 'color' => '#22c55e'],
+            ['name' => 'En attente', 'value' => $sent, 'color' => '#3b82f6'],
+            ['name' => 'Refusés', 'value' => $rejected, 'color' => '#ef4444'],
+            ['name' => 'Brouillons', 'value' => $draft, 'color' => '#9ca3af'],
+        ];
+
+        // ============ RÉPARTITION PAR TYPE DE TRAVAUX ============
+        $workTypeStats = QuotationWork::select('work_type', DB::raw('COUNT(*) as count'))
+            ->whereHas('room.quotation', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })
+            ->groupBy('work_type')
+            ->orderByDesc('count')
+            ->get()
+            ->map(function ($item) {
+                $colors = [
+                    'plafond_ba13' => '#9E3D36',
+                    'cloison' => '#c45d55',
+                    'habillage_mur' => '#d4817b',
+                    'gaine_creuse' => '#e5a5a0',
+                ];
+                $labels = [
+                    'plafond_ba13' => 'Plafond BA13',
+                    'cloison' => 'Cloison',
+                    'habillage_mur' => 'Habillage mur',
+                    'gaine_creuse' => 'Gaine creuse',
+                ];
+                return [
+                    'name' => $labels[$item->work_type] ?? $item->work_type,
+                    'count' => $item->count,
+                    'fill' => $colors[$item->work_type] ?? '#9E3D36',
+                ];
+            });
+
+        // ============ DEVIS EXPIRANTS BIENTÔT ============
+        $expiringCount = (clone $baseQuery)
+            ->where('status', 'sent')
+            ->whereNotNull('validity_date')
+            ->where('validity_date', '<=', $now->copy()->addDays(7))
+            ->where('validity_date', '>', $now)
+            ->count();
+
+        // ============ RÉPONSE ============
         return response()->json([
             'success' => true,
-            'data' => $stats,
+            'data' => [
+                // Compteurs de base
+                'total' => $total,
+                'draft' => $draft,
+                'sent' => $sent,
+                'accepted' => $accepted,
+                'rejected' => $rejected,
+                'expired' => $expired,
+                'pending' => $pending,
+
+                // Chiffre d'affaires
+                'total_revenue' => round($totalRevenue, 0),
+                'revenue_this_month' => round($revenueThisMonth, 0),
+                'revenue_last_month' => round($revenueLastMonth, 0),
+                'revenue_trend' => $revenueTrend,
+
+                // Devis ce mois
+                'quotations_this_month' => $quotationsThisMonth,
+                'quotations_trend' => $quotationsTrend,
+
+                // Taux de conversion
+                'conversion_rate' => $conversionRate,
+                'conversion_trend' => round($conversionTrend, 1),
+
+                // Montants
+                'pending_amount' => round($pendingAmount, 0),
+
+                // Données pour graphiques
+                'monthly_data' => $monthlyData,
+                'status_distribution' => $statusDistribution,
+                'work_type_distribution' => $workTypeStats,
+
+                // Alertes
+                'expiring_soon' => $expiringCount,
+            ],
         ]);
     }
 }
