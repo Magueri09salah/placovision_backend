@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('quotation_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('quotation_work_id')->constrained()->onDelete('cascade');
-            $table->foreignId('product_id')->nullable()->constrained()->onDelete('set null');
+            // $table->foreignId('product_id')->nullable()->constrained()->onDelete('set null');
             
             // Description du produit
             $table->string('designation');

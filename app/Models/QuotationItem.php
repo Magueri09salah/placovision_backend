@@ -12,7 +12,7 @@ class QuotationItem extends Model
 
     protected $fillable = [
         'quotation_work_id',
-        'product_id',
+        // 'product_id',
         'designation',
         'description',
         'quantity_calculated',
@@ -59,10 +59,10 @@ class QuotationItem extends Model
         return $this->belongsTo(QuotationWork::class, 'quotation_work_id');
     }
 
-    public function product(): BelongsTo
-    {
-        return $this->belongsTo(Product::class);
-    }
+    // public function product(): BelongsTo
+    // {
+    //     return $this->belongsTo(Product::class);
+    // }
 
     // ========== METHODES ==========
 
