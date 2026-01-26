@@ -342,8 +342,8 @@
                 <span class="pill"><strong>N.</strong> {{ $quotation->reference }}</span>
                 <span class="pill"><strong>Date</strong> {{ $quotation->created_at->format('d/m/Y') }}</span>
                 <br>
-                <span class="pill"><strong>Validite</strong> {{ $quotation->validity_date ? $quotation->validity_date->format('d/m/Y') : '30 jours' }}</span>
-                <span class="pill status-{{ $quotation->status }}">{{ ucfirst($quotation->status) }}</span>
+                <!-- <span class="pill"><strong>Validite</strong> {{ $quotation->validity_date ? $quotation->validity_date->format('d/m/Y') : '30 jours' }}</span>
+                <span class="pill status-{{ $quotation->status }}">{{ ucfirst($quotation->status) }}</span> -->
             </div>
         </div>
     </div>
@@ -392,7 +392,7 @@
         <thead>
             <tr>
                 <th style="width: 35%;">Designation</th>
-                <th style="width: 12%;" class="center">Qte calc.</th>
+                <!-- <th style="width: 12%;" class="center">Qte calc.</th> -->
                 <th style="width: 12%;" class="center">Qte</th>
                 <th style="width: 10%;" class="center">Unite</th>
                 <th style="width: 15%;" class="right">P.U. HT</th>
@@ -405,9 +405,9 @@
                 <tr class="section-room">
                     <td colspan="6">
                         {{ $roomLabels[$room->room_type] ?? $room->room_name }}
-                        <span class="muted" style="font-weight: 400; margin-left: 10px;">
+                        <!-- <span class="muted" style="font-weight: 400; margin-left: 10px;">
                             Sous-total: {{ $fmtMoney($room->subtotal_ht ?? 0) }}
-                        </span>
+                        </span> -->
                     </td>
                 </tr>
                 
@@ -416,8 +416,8 @@
                         {{-- Work Header --}}
                         <tr class="section-work">
                             <td colspan="6">
-                                &gt; {{ $workLabels[$work->work_type] ?? $work->work_type }}
-                                - {{ $fmtQty($work->surface ?? 0) }} {{ $workUnits[$work->work_type] ?? 'm2' }}
+                                 {{ $workLabels[$work->work_type] ?? $work->work_type }}
+                                - {{ $fmtQty($work->surface ?? 0) }} {{ $workUnits[$work->work_type] ?? 'm²' }}
                                 <span class="muted" style="float: right;">{{ $fmtMoney($work->subtotal_ht ?? 0) }}</span>
                             </td>
                         </tr>
@@ -435,7 +435,7 @@
                                             <div class="muted" style="font-size: 9px;">{{ $item->description }}</div>
                                         @endif
                                     </td>
-                                    <td class="center muted">{{ $fmtQty($item->quantity_calculated ?? 0) }}</td>
+                                    <!-- <td class="center muted">{{ $fmtQty($item->quantity_calculated ?? 0) }}</td> -->
                                     <td class="center" style="font-weight: 600;">{{ $fmtQty($item->quantity_adjusted ?? 0) }}</td>
                                     <td class="center">{{ $item->unit ?? '' }}</td>
                                     <td class="right">{{ $fmtMoney($item->unit_price ?? 0) }}</td>
@@ -466,6 +466,8 @@
     </div>
 @endif
 
+<p class="font-weight: 700; font-size: 12px">NB : La durée de validité de ce devis est de 30 jours.</p>
+
 {{-- ==================== TOTAUX ==================== --}}
 <div class="totals-wrapper no-break">
     <div class="totals">
@@ -490,50 +492,6 @@
     </div>
 </div>
 
-{{-- ==================== CONDITIONS & SIGNATURES ==================== --}}
-<div class="signatures">
-    <div class="row">
-        <div class="col col-half">
-            <div class="card">
-                <div class="card-title">Conditions</div>
-                <div style="margin-bottom: 5px;">
-                    <strong>Paiement :</strong> 30% a la commande, solde a la livraison
-                </div>
-                <div style="margin-bottom: 5px;">
-                    <strong>Delai :</strong> Selon disponibilite des materiaux
-                </div>
-                <div style="margin-bottom: 5px;">
-                    <strong>Validite :</strong> {{ $quotation->validity_date ? $quotation->validity_date->diffInDays($quotation->created_at) : 30 }} jours
-                </div>
-                @if($quotation->notes)
-                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
-                        <strong>Observations :</strong><br>
-                        <span class="muted">{{ $quotation->notes }}</span>
-                    </div>
-                @endif
-            </div>
-        </div>
-        <div class="col col-half">
-            <div class="card">
-                <div class="card-title">Validation</div>
-                <div class="row">
-                    <div class="signature-box">
-                        <div class="signature-title">Pour {{ $companyName }}</div>
-                        <div class="signature-line">
-                            Direction
-                        </div>
-                    </div>
-                    <div class="signature-box">
-                        <div class="signature-title">Bon pour accord (Client)</div>
-                        <div class="signature-line">
-                            Signature et Date
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 {{-- ==================== FOOTER ==================== --}}
 <div class="footer">
@@ -542,7 +500,7 @@
     @if($companyCity), {{ $companyCity }}@endif
     @if($companyIce) - <strong>ICE:</strong> {{ $companyIce }}@endif
     <br>
-    Devis genere le {{ now()->format('d/m/Y a H:i') }} - Ce document n a pas valeur de facture
+    Devis générer le {{ now()->format('d/m/Y a H:i') }} - Ce document n a pas valeur de facture
 </div>
 
 </body>

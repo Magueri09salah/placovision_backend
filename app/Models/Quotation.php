@@ -72,7 +72,7 @@ class Quotation extends Model
             ->whereYear('created_at', $year)
             ->count() + 1;
         
-        return sprintf('DEV-%s-%04d', $year, $count);
+        return sprintf('DE-%s-%04d', $year, $count);
     }
 
     // ========== RELATIONS ==========
