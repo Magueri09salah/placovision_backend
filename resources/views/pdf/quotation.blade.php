@@ -298,7 +298,7 @@
     $companyCity = "Marrakech - Maroc";
     $companyPhone = "+212 7 67 91 54 25";
     $companyEmail = "contact@asduplaco.com";
-    $companyIce = "E78xc7878452";
+    $companyIce = "003890458000001";
     
     // LOGO - Fixed path: public/images/logo.svg
     $logoBase64 = null;
@@ -445,7 +445,7 @@
                         @else
                             <tr>
                                 <td colspan="6" class="center muted" style="padding: 20px;">
-                                    Aucun materiau defini pour ce travail
+                                    Aucun materiaux defini pour ce travail
                                 </td>
                             </tr>
                         @endif
@@ -499,8 +499,6 @@
     @if($companyAddressLine1) - {{ $companyAddressLine1 }}@endif
     @if($companyCity), {{ $companyCity }}@endif
     @if($companyIce) - <strong>ICE:</strong> {{ $companyIce }}@endif
-    <br>
-    Devis générer le {{ now()->format('d/m/Y a H:i') }} - Ce document n a pas valeur de facture
 </div>
 
 </body>
