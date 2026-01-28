@@ -403,7 +403,7 @@
             @foreach($quotation->rooms as $room)
                 {{-- Room Header --}}
                 <tr class="section-room">
-                    <td colspan="6">
+                    <td colspan="5">
                         {{ $roomLabels[$room->room_type] ?? $room->room_name }}
                         <!-- <span class="muted" style="font-weight: 400; margin-left: 10px;">
                             Sous-total: {{ $fmtMoney($room->subtotal_ht ?? 0) }}
@@ -415,7 +415,7 @@
                     @foreach($room->works as $work)
                         {{-- Work Header --}}
                         <tr class="section-work">
-                            <td colspan="6">
+                            <td colspan="5">
                                  {{ $workLabels[$work->work_type] ?? $work->work_type }}
                                 - {{ $fmtQty($work->surface ?? 0) }} {{ $workUnits[$work->work_type] ?? 'm²' }}
                                 <span class="muted" style="float: right;">{{ $fmtMoney($work->subtotal_ht ?? 0) }}</span>
@@ -425,12 +425,12 @@
                         {{-- Materials/Items --}}
                         @if($work->items && count($work->items) > 0)
                             @foreach($work->items as $item)
-                                <tr class="{{ $item->is_modified ? 'item-modified' : '' }}">
+                                <tr>
                                     <td>
                                         {{ $item->designation ?? 'N/A' }}
-                                        @if($item->is_modified)
+                                        <!-- @if($item->is_modified)
                                             <span class="modified-badge">(modifie)</span>
-                                        @endif
+                                        @endif -->
                                         @if($item->description)
                                             <div class="muted" style="font-size: 9px;">{{ $item->description }}</div>
                                         @endif
@@ -444,7 +444,7 @@
                             @endforeach
                         @else
                             <tr>
-                                <td colspan="6" class="center muted" style="padding: 20px;">
+                                <td colspan="5" class="center muted" style="padding: 20px;">
                                     Aucun materiaux defini pour ce travail
                                 </td>
                             </tr>
