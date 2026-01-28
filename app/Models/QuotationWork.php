@@ -56,10 +56,10 @@ class QuotationWork extends Model
      */
     public const MATERIAL_RULES = [
         'habillage_mur' => [
-            ['designation' => 'Plaque BA13', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 85],
-            ['designation' => 'Montant 48', 'quantity' => 12, 'unit' => 'unité', 'unit_price' => 25],
-            ['designation' => 'Rail 48', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 22],
-            ['designation' => 'Fourrure', 'quantity' => 2, 'unit' => 'unité', 'unit_price' => 18],
+            ['designation' => 'Plaque BA13', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 24.12],
+            ['designation' => 'Montant 48', 'quantity' => 12, 'unit' => 'unité', 'unit_price' => 26.16],
+            ['designation' => 'Rail 48', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 21.12],
+            ['designation' => 'Fourrure', 'quantity' => 2, 'unit' => 'unité', 'unit_price' => 21.12],
             ['designation' => 'Isolant (laine de verre)', 'quantity' => 10, 'unit' => 'm²', 'unit_price' => 35],
             ['designation' => 'Vis TTPC 25 mm', 'quantity' => 90, 'unit' => 'unité', 'unit_price' => 0.15],
             ['designation' => 'Vis TTPC 9 mm', 'quantity' => 30, 'unit' => 'unité', 'unit_price' => 0.12],
@@ -68,8 +68,8 @@ class QuotationWork extends Model
             ['designation' => 'Enduit', 'quantity' => 5, 'unit' => 'sacs', 'unit_price' => 8],
         ],
         'plafond_ba13' => [
-            ['designation' => 'Plaque BA13', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 85],
-            ['designation' => 'Fourrure', 'quantity' => 7, 'unit' => 'unité', 'unit_price' => 18],
+            ['designation' => 'Plaque BA13', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 24.12],
+            ['designation' => 'Fourrure', 'quantity' => 7, 'unit' => 'unité', 'unit_price' => 21.12],
             ['designation' => 'Tige filetée + pivot + cheville béton', 'quantity' => 16, 'unit' => 'ensemble', 'unit_price' => 8],
             ['designation' => 'Vis TTPC 25 mm', 'quantity' => 70, 'unit' => 'unité', 'unit_price' => 0.15],
             ['designation' => 'Vis TTPC 9 mm', 'quantity' => 20, 'unit' => 'unité', 'unit_price' => 0.12],
@@ -77,9 +77,9 @@ class QuotationWork extends Model
             ['designation' => 'Enduit', 'quantity' => 5, 'unit' => 'sacs', 'unit_price' => 8],
         ],
         'cloison' => [
-            ['designation' => 'Plaque BA13', 'quantity' => 6, 'unit' => 'unité', 'unit_price' => 85],
-            ['designation' => 'Montant 70', 'quantity' => 12, 'unit' => 'unité', 'unit_price' => 32],
-            ['designation' => 'Rail 70', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 28],
+            ['designation' => 'Plaque BA13', 'quantity' => 6, 'unit' => 'unité', 'unit_price' => 24.12],
+            ['designation' => 'Montant 70', 'quantity' => 12, 'unit' => 'unité', 'unit_price' => 33.00],
+            ['designation' => 'Rail 70', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 28.20],
             ['designation' => 'Isolant (laine de verre)', 'quantity' => 10, 'unit' => 'm²', 'unit_price' => 35],
             ['designation' => 'Vis TTPC 25 mm', 'quantity' => 150, 'unit' => 'unité', 'unit_price' => 0.15],
             ['designation' => 'Vis TTPC 9 mm', 'quantity' => 30, 'unit' => 'unité', 'unit_price' => 0.12],
@@ -88,9 +88,9 @@ class QuotationWork extends Model
             ['designation' => 'Enduit', 'quantity' => 10, 'unit' => 'sacs', 'unit_price' => 8],
         ],
         'gaine_creuse' => [
-            ['designation' => 'Plaque BA13', 'quantity' => 2, 'unit' => 'unité', 'unit_price' => 85],
-            ['designation' => 'Cornière', 'quantity' => 8, 'unit' => 'unité', 'unit_price' => 15],
-            ['designation' => 'Fourrure', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 18],
+            ['designation' => 'Plaque BA13', 'quantity' => 2, 'unit' => 'unité', 'unit_price' => 24.12],
+            ['designation' => 'Cornière', 'quantity' => 8, 'unit' => 'unité', 'unit_price' => 33.44],
+            ['designation' => 'Fourrure', 'quantity' => 3, 'unit' => 'unité', 'unit_price' => 21.12],
             ['designation' => 'Vis TTPC 25 mm', 'quantity' => 120, 'unit' => 'unité', 'unit_price' => 0.15],
             ['designation' => 'Vis TTPC 9 mm', 'quantity' => 30, 'unit' => 'unité', 'unit_price' => 0.12],
             ['designation' => 'Tige filetée + pivot + cheville béton', 'quantity' => 10, 'unit' => 'ensemble', 'unit_price' => 8],
