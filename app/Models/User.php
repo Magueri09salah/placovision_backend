@@ -55,7 +55,7 @@ class User extends Authenticatable
         return $this->account_type === 'particulier';
     }
 
-    public function     isProfessionnel(): bool
+    public function isProfessionnel(): bool
     {
         return $this->account_type === 'professionnel';
     }

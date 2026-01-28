@@ -112,17 +112,39 @@ class QuotationController extends Controller
                                 'sort_order' => $workIndex,
                             ]);
 
-                            // Générer automatiquement les matériaux
-                            $work->generateItems();
+                            // ✅ Si des items sont fournis, les utiliser
+                            if (isset($workData['items']) && is_array($workData['items']) && count($workData['items']) > 0) {
+                                foreach ($workData['items'] as $itemIndex => $itemData) {
+                                    $quantityAdjusted = $itemData['quantity_adjusted'] ?? $itemData['quantity_calculated'];
+                                    $totalHt = $quantityAdjusted * $itemData['unit_price'];
+                                    
+                                    QuotationItem::create([
+                                        'quotation_work_id' => $work->id,
+                                        'designation' => $itemData['designation'],
+                                        'quantity_calculated' => $itemData['quantity_calculated'],
+                                        'quantity_adjusted' => $quantityAdjusted,
+                                        'unit' => $itemData['unit'],
+                                        'unit_price' => $itemData['unit_price'],
+                                        'total_ht' => round($totalHt, 2),
+                                        'is_modified' => $quantityAdjusted != $itemData['quantity_calculated'],
+                                        'sort_order' => $itemIndex,
+                                    ]);
+                                }
+                            } else {
+                                // Sinon, générer automatiquement les matériaux
+                                $work->generateItems();
+                            }
                         }
                     }
 
                     // Recalculer le sous-total de la pièce
+                    $room->load('works.items');
                     $room->recalculateSubtotal();
                 }
             }
 
             // 3. Recalculer les totaux du devis
+            $quotation->load('rooms.works.items');
             $quotation->recalculateTotals();
 
             DB::commit();
@@ -130,7 +152,7 @@ class QuotationController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Devis créé avec succès.',
-                'data' => new QuotationResource($quotation->load(['rooms.works.items'])),
+                'data' => new QuotationResource($quotation->fresh(['rooms.works.items'])),
             ], 201);
 
         } catch (\Exception $e) {
@@ -198,7 +220,13 @@ class QuotationController extends Controller
 
             // Si des pièces sont fournies, les mettre à jour
             if ($request->has('rooms')) {
-                // Supprimer les anciennes pièces
+                // ✅ Supprimer les anciennes données en cascade
+                foreach ($quotation->rooms as $room) {
+                    foreach ($room->works as $work) {
+                        $work->items()->delete();
+                    }
+                    $room->works()->delete();
+                }
                 $quotation->rooms()->delete();
 
                 foreach ($request->rooms as $roomIndex => $roomData) {
@@ -221,14 +249,39 @@ class QuotationController extends Controller
                                 'sort_order' => $workIndex,
                             ]);
 
-                            $work->generateItems();
+                            // ✅ Si des items sont fournis dans le payload, les utiliser
+                            if (isset($workData['items']) && is_array($workData['items']) && count($workData['items']) > 0) {
+                                foreach ($workData['items'] as $itemIndex => $itemData) {
+                                    $quantityAdjusted = $itemData['quantity_adjusted'] ?? $itemData['quantity_calculated'];
+                                    $totalHt = $quantityAdjusted * $itemData['unit_price'];
+                                    
+                                    QuotationItem::create([
+                                        'quotation_work_id' => $work->id,
+                                        'designation' => $itemData['designation'],
+                                        'quantity_calculated' => $itemData['quantity_calculated'],
+                                        'quantity_adjusted' => $quantityAdjusted,
+                                        'unit' => $itemData['unit'],
+                                        'unit_price' => $itemData['unit_price'],
+                                        'total_ht' => round($totalHt, 2),
+                                        'is_modified' => $quantityAdjusted != $itemData['quantity_calculated'],
+                                        'sort_order' => $itemIndex,
+                                    ]);
+                                }
+                            } else {
+                                // Sinon, générer automatiquement les matériaux
+                                $work->generateItems();
+                            }
                         }
                     }
 
+                    // Recalculer le sous-total de la pièce
+                    $room->load('works.items');
                     $room->recalculateSubtotal();
                 }
             }
 
+            // Recharger et recalculer les totaux
+            $quotation->load('rooms.works.items');
             $quotation->recalculateTotals();
 
             DB::commit();
