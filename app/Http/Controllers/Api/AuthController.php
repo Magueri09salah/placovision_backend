@@ -216,34 +216,49 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
-        // Validation
         $validated = $request->validate([
-            'first_name' => 'required|string|max:100',
-            'last_name' => 'required|string|max:100',
+            'first_name' => 'required|string|max:100|min:2',
+            'last_name' => 'required|string|max:100|min:2',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
+            'password' => [
+                'required', 
+                'confirmed', 
+                Password::min(8)
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols()
+            ],
             'phone' => 'nullable|string|max:20',
             'account_type' => 'required|in:particulier,professionnel',
-            
-            // Champs entreprise (obligatoires si professionnel)
-            'company_name' => 'required_if:account_type,professionnel|string|max:255',
+            'company_name' => 'required_if:account_type,professionnel|nullable|string|max:255|min:2',
             'company_ice' => 'nullable|string|max:50',
             'company_address' => 'nullable|string|max:255',
             'company_city' => 'nullable|string|max:100',
             'company_phone' => 'nullable|string|max:20',
         ], [
             'first_name.required' => 'Le prénom est obligatoire.',
+            'first_name.min' => 'Le prénom doit contenir au moins 2 caractères.',
             'last_name.required' => 'Le nom est obligatoire.',
-            'email.unique' => 'Cet email est déjà utilisé.',
+            'last_name.min' => 'Le nom doit contenir au moins 2 caractères.',
+            'email.required' => 'L\'adresse email est obligatoire.',
+            'email.email' => 'Veuillez entrer une adresse email valide.',
+            'email.unique' => 'Cette adresse email est déjà utilisée.',
+            'password.required' => 'Le mot de passe est obligatoire.',
             'password.confirmed' => 'Les mots de passe ne correspondent pas.',
+            'password.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
+            'password.mixed' => 'Le mot de passe doit contenir des majuscules et des minuscules.',
+            'password.numbers' => 'Le mot de passe doit contenir au moins un chiffre.',
+            'password.symbols' => 'Le mot de passe doit contenir au moins un caractère spécial.',
             'account_type.required' => 'Veuillez choisir un type de compte.',
+            'account_type.in' => 'Type de compte invalide.',
             'company_name.required_if' => 'Le nom de l\'entreprise est obligatoire pour un compte professionnel.',
+            'company_name.min' => 'Le nom de l\'entreprise doit contenir au moins 2 caractères.',
         ]);
 
         try {
             DB::beginTransaction();
 
-            // 1. Créer l'utilisateur
+            // Créer l'utilisateur
             $user = User::create([
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
@@ -254,7 +269,7 @@ class AuthController extends Controller
                 'is_active' => true,
             ]);
 
-            // 2. Si professionnel → créer entreprise
+            // Si professionnel → créer entreprise
             if ($validated['account_type'] === 'professionnel') {
                 $company = Company::create([
                     'name' => $validated['company_name'],
@@ -265,21 +280,18 @@ class AuthController extends Controller
                     'is_active' => true,
                 ]);
 
-                // Lier user → company avec rôle admin
                 $user->companies()->attach($company->id, [
                     'role' => 'admin',
                     'is_active' => true,
                     'joined_at' => now(),
                 ]);
 
-                // Assigner rôle Spatie
                 $user->assignRole('admin_entreprise');
             } else {
-                // Assigner rôle particulier
                 $user->assignRole('particulier');
             }
 
-            // 3. Générer token
+            // Générer token
             $token = $user->createToken('auth_token')->plainTextToken;
 
             DB::commit();

@@ -68,8 +68,9 @@ class Quotation extends Model
     public static function generateReference(int $userId): string
     {
         $year = date('Y');
-        $count = static::where('user_id', $userId)
-            ->whereYear('created_at', $year)
+        $count = static::
+            // where('user_id', $userId)
+            whereYear('created_at', $year)
             ->count() + 1;
         
         return sprintf('DE-%s-%04d', $year, $count);
