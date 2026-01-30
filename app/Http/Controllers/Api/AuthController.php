@@ -11,6 +11,8 @@ use Illuminate\Validation\Rules\Password;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -458,35 +460,75 @@ class AuthController extends Controller
      * Update Profile
      * PUT /api/profile
      */
+    /**
+ * Update Profile
+ * PUT/POST /api/profile
+ */
     public function updateProfile(Request $request)
     {
         $user = $request->user();
 
+        // ✅ Debug: voir ce qui est reçu
+        // \Log::info('Request files:', $request->allFiles());
+        // \Log::info('Request all:', $request->all());
+
         $validated = $request->validate([
-            'first_name' => 'sometimes|string|max:100',
-            'last_name' => 'sometimes|string|max:100',
+            'first_name' => 'sometimes|string|max:100|min:2',
+            'last_name' => 'sometimes|string|max:100|min:2',
             'phone' => 'nullable|string|max:20',
-            'avatar' => 'nullable|image|max:2048',
-            'preferences' => 'nullable|array',
+            // ✅ Utiliser 'file' avec 'mimes' au lieu de 'image'
+            'avatar' => 'nullable|file|mimes:jpeg,jpg,png,gif,webp|max:2048',
+        ], [
+            'first_name.min' => 'Le prénom doit contenir au moins 2 caractères.',
+            'last_name.min' => 'Le nom doit contenir au moins 2 caractères.',
+            'avatar.file' => 'Le fichier avatar est invalide.',
+            'avatar.mimes' => 'L\'image doit être au format jpeg, jpg, png, gif ou webp.',
+            'avatar.max' => 'L\'image ne doit pas dépasser 2 Mo.',
         ]);
 
-        if ($request->hasFile('avatar')) {
+        // Log::info('=== UPDATE PROFILE ===');
+        // Log::info('All data:', $request->all());
+        // Log::info('Files:', $request->allFiles());
+        // Log::info('Has avatar:', $request->hasFile('avatar') ? 'YES' : 'NO');
+
+        // ✅ Gérer l'upload de l'avatar séparément
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            // Supprimer l'ancien avatar s'il existe (et n'est pas une URL externe)
+            if ($user->avatar && !str_starts_with($user->avatar, 'http')) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+            
             $path = $request->file('avatar')->store('avatars', 'public');
             $validated['avatar'] = $path;
         }
 
-        $user->update($validated);
+        // Retirer avatar de validated s'il n'y a pas de fichier uploadé
+        if (!$request->hasFile('avatar')) {
+            unset($validated['avatar']);
+        }
+
+        // Mettre à jour seulement les champs non vides
+        $updateData = array_filter($validated, fn($value) => $value !== null && $value !== '');
+        
+        if (!empty($updateData)) {
+            $user->update($updateData);
+        }
+
+        $user->refresh();
 
         return response()->json([
             'success' => true,
-            'message' => 'Profil mis à jour.',
+            'message' => 'Profil mis à jour avec succès.',
             'data' => [
                 'id' => $user->id,
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'full_name' => $user->fullName(),
+                'email' => $user->email,
                 'phone' => $user->phone,
                 'avatar' => $user->avatar,
+                'account_type' => $user->account_type,
+                'roles' => $user->getRoleNames(),
             ]
         ], 200);
     }
