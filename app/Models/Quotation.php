@@ -61,6 +61,11 @@ class Quotation extends Model
             if (empty($quotation->validity_date)) {
                 $quotation->validity_date = now()->addDays(30);
             }
+
+            if (empty($quotation->public_token)) {
+            $quotation->public_token = Str::random(32);
+        }
+          
         });
     }
 
