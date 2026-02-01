@@ -3,7 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\QuotationController;
-use App\Http\Controllers\Api\QuotationPdfController;
+use App\Http\Controllers\Api\PublicPdfController;
 use App\Http\Controllers\Api\Admin\ProductCategoryController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Route;
 | API Routes
 |--------------------------------------------------------------------------
 */
+
+Route::get('/pdf/{token}', [PublicPdfController::class, 'show']);
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -57,8 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/quotations/{id}/items/{itemId}', [QuotationController::class, 'updateItem']);
     Route::post('/quotations/{id}/items/{itemId}/reset', [QuotationController::class, 'resetItem']);
 
-    Route::get('/quotations/{id}/pdf', [QuotationPdfController::class, 'generate']);
-    Route::get('/quotations/{id}/pdf/preview', [QuotationPdfController::class, 'preview']);
+    Route::get('/quotations/{id}/pdf', [QuotationController::class, 'exportPdf']);
 });
 
 /*

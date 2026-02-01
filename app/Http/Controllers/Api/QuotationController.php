@@ -104,47 +104,49 @@ class QuotationController extends Controller
                         foreach ($roomData['works'] as $workIndex => $workData) {
                             $workType = QuotationWork::WORK_TYPES[$workData['work_type']] ?? null;
                             
+                            // ✅ Utiliser longueur et hauteur pour les calculs DTU 25.41
+                            $longueur = $workData['longueur'] ?? 0;
+                            $hauteur = $workData['hauteur'] ?? 0;
+                            $surface = $workData['surface'] ?? ($longueur * $hauteur);
+                            
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
                                 'work_type' => $workData['work_type'],
-                                'surface' => $workData['surface'],
+                                'longueur' => $longueur,
+                                'hauteur' => $hauteur,
+                                'surface' => $surface,
                                 'unit' => $workType['unit'] ?? 'm2',
                                 'sort_order' => $workIndex,
                             ]);
 
-                            // ✅ Si des items sont fournis, les utiliser
+                            // ✅ Si des items sont fournis par le frontend, les utiliser
                             if (isset($workData['items']) && is_array($workData['items']) && count($workData['items']) > 0) {
                                 foreach ($workData['items'] as $itemIndex => $itemData) {
-                                    $quantityAdjusted = $itemData['quantity_adjusted'] ?? $itemData['quantity_calculated'];
-                                    $totalHt = $quantityAdjusted * $itemData['unit_price'];
-                                    
-                                    QuotationItem::create([
-                                        'quotation_work_id' => $work->id,
+                                    $work->items()->create([
                                         'designation' => $itemData['designation'],
                                         'quantity_calculated' => $itemData['quantity_calculated'],
-                                        'quantity_adjusted' => $quantityAdjusted,
+                                        'quantity_adjusted' => $itemData['quantity_adjusted'] ?? $itemData['quantity_calculated'],
                                         'unit' => $itemData['unit'],
                                         'unit_price' => $itemData['unit_price'],
-                                        'total_ht' => round($totalHt, 2),
-                                        'is_modified' => $quantityAdjusted != $itemData['quantity_calculated'],
+                                        'total_ht' => round(($itemData['quantity_adjusted'] ?? $itemData['quantity_calculated']) * $itemData['unit_price'], 2),
+                                        'is_modified' => ($itemData['quantity_adjusted'] ?? $itemData['quantity_calculated']) != $itemData['quantity_calculated'],
                                         'sort_order' => $itemIndex,
                                     ]);
                                 }
+                                $work->recalculateSubtotal();
                             } else {
-                                // Sinon, générer automatiquement les matériaux
+                                // Sinon, générer automatiquement les matériaux selon DTU
                                 $work->generateItems();
                             }
                         }
                     }
 
                     // Recalculer le sous-total de la pièce
-                    $room->load('works.items');
                     $room->recalculateSubtotal();
                 }
             }
 
             // 3. Recalculer les totaux du devis
-            $quotation->load('rooms.works.items');
             $quotation->recalculateTotals();
 
             DB::commit();
@@ -152,7 +154,7 @@ class QuotationController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Devis créé avec succès.',
-                'data' => new QuotationResource($quotation->fresh(['rooms.works.items'])),
+                'data' => new QuotationResource($quotation->load(['rooms.works.items'])),
             ], 201);
 
         } catch (\Exception $e) {
@@ -170,7 +172,7 @@ class QuotationController extends Controller
      * Voir un devis
      * GET /api/quotations/{id}
      */
-    public function show(Request $request, $id): JsonResponse
+    public function show(Request $request, $id)
     {
         $user = $request->user();
 
@@ -220,13 +222,7 @@ class QuotationController extends Controller
 
             // Si des pièces sont fournies, les mettre à jour
             if ($request->has('rooms')) {
-                // ✅ Supprimer les anciennes données en cascade
-                foreach ($quotation->rooms as $room) {
-                    foreach ($room->works as $work) {
-                        $work->items()->delete();
-                    }
-                    $room->works()->delete();
-                }
+                // Supprimer les anciennes pièces
                 $quotation->rooms()->delete();
 
                 foreach ($request->rooms as $roomIndex => $roomData) {
@@ -241,47 +237,46 @@ class QuotationController extends Controller
                         foreach ($roomData['works'] as $workIndex => $workData) {
                             $workType = QuotationWork::WORK_TYPES[$workData['work_type']] ?? null;
                             
+                            // ✅ Utiliser longueur et hauteur pour les calculs DTU 25.41
+                            $longueur = $workData['longueur'] ?? 0;
+                            $hauteur = $workData['hauteur'] ?? 0;
+                            $surface = $workData['surface'] ?? ($longueur * $hauteur);
+                            
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
                                 'work_type' => $workData['work_type'],
-                                'surface' => $workData['surface'],
+                                'longueur' => $longueur,
+                                'hauteur' => $hauteur,
+                                'surface' => $surface,
                                 'unit' => $workType['unit'] ?? 'm2',
                                 'sort_order' => $workIndex,
                             ]);
 
-                            // ✅ Si des items sont fournis dans le payload, les utiliser
+                            // ✅ Si des items sont fournis par le frontend, les utiliser
                             if (isset($workData['items']) && is_array($workData['items']) && count($workData['items']) > 0) {
                                 foreach ($workData['items'] as $itemIndex => $itemData) {
-                                    $quantityAdjusted = $itemData['quantity_adjusted'] ?? $itemData['quantity_calculated'];
-                                    $totalHt = $quantityAdjusted * $itemData['unit_price'];
-                                    
-                                    QuotationItem::create([
-                                        'quotation_work_id' => $work->id,
+                                    $work->items()->create([
                                         'designation' => $itemData['designation'],
                                         'quantity_calculated' => $itemData['quantity_calculated'],
-                                        'quantity_adjusted' => $quantityAdjusted,
+                                        'quantity_adjusted' => $itemData['quantity_adjusted'] ?? $itemData['quantity_calculated'],
                                         'unit' => $itemData['unit'],
                                         'unit_price' => $itemData['unit_price'],
-                                        'total_ht' => round($totalHt, 2),
-                                        'is_modified' => $quantityAdjusted != $itemData['quantity_calculated'],
+                                        'total_ht' => round(($itemData['quantity_adjusted'] ?? $itemData['quantity_calculated']) * $itemData['unit_price'], 2),
+                                        'is_modified' => ($itemData['quantity_adjusted'] ?? $itemData['quantity_calculated']) != $itemData['quantity_calculated'],
                                         'sort_order' => $itemIndex,
                                     ]);
                                 }
+                                $work->recalculateSubtotal();
                             } else {
-                                // Sinon, générer automatiquement les matériaux
                                 $work->generateItems();
                             }
                         }
                     }
 
-                    // Recalculer le sous-total de la pièce
-                    $room->load('works.items');
                     $room->recalculateSubtotal();
                 }
             }
 
-            // Recharger et recalculer les totaux
-            $quotation->load('rooms.works.items');
             $quotation->recalculateTotals();
 
             DB::commit();
@@ -445,19 +440,31 @@ class QuotationController extends Controller
     public function simulate(Request $request): JsonResponse
     {
         $request->validate([
-            'work_type' => 'required|in:habillage_mur,plafond_ba13,cloison,gaine_creuse',
-            'surface' => 'required|numeric|min:0.1',
+            'work_type' => 'required|in:habillage_mur,plafond_ba13,cloison_simple,cloison_double,gaine_technique',
+            'longueur' => 'required|numeric|min:0.1',
+            'hauteur' => 'required|numeric|min:0.1',
+            'room_type' => 'nullable|string',
         ]);
 
         $workType = $request->work_type;
-        $surface = $request->surface;
+        $longueur = $request->longueur;
+        $hauteur = $request->hauteur;
+        $surface = $longueur * $hauteur;
 
         // Créer un work temporaire pour le calcul
         $tempWork = new QuotationWork([
             'work_type' => $workType,
+            'longueur' => $longueur,
+            'hauteur' => $hauteur,
             'surface' => $surface,
             'unit' => QuotationWork::WORK_TYPES[$workType]['unit'] ?? 'm2',
         ]);
+
+        // Simuler une room pour obtenir le type de plaque correct
+        if ($request->room_type) {
+            $tempRoom = new QuotationRoom(['room_type' => $request->room_type]);
+            $tempWork->setRelation('room', $tempRoom);
+        }
 
         $materials = $tempWork->calculateMaterials();
         $total = array_sum(array_column($materials, 'total_ht'));
@@ -467,10 +474,14 @@ class QuotationController extends Controller
             'data' => [
                 'work_type' => $workType,
                 'work_type_label' => QuotationWork::WORK_TYPES[$workType]['label'] ?? $workType,
-                'surface' => $surface,
+                'work_type_description' => QuotationWork::WORK_TYPES[$workType]['description'] ?? '',
+                'longueur' => $longueur,
+                'hauteur' => $hauteur,
+                'surface' => round($surface, 2),
                 'unit' => QuotationWork::WORK_TYPES[$workType]['unit'] ?? 'm2',
                 'materials' => $materials,
                 'total_ht' => round($total, 2),
+                'dtu_notice' => 'Les calculs sont établis conformément au DTU 25.41.',
             ],
         ]);
     }
@@ -489,11 +500,18 @@ class QuotationController extends Controller
                     return [
                         'value' => $key,
                         'label' => $type['label'],
+                        'description' => $type['description'] ?? '',
                         'unit' => $type['unit'],
                         'unit_label' => $type['unit'] === 'm2' ? 'm²' : 'ml',
                     ];
                 })->values(),
                 'statuses' => Quotation::getStatusLabels(),
+                'dtu' => [
+                    'version' => '25.41',
+                    'entraxe' => QuotationWork::DTU['ENTRAXE'],
+                    'plaque_surface' => QuotationWork::DTU['PLAQUE_SURFACE'],
+                    'profil_longueur' => QuotationWork::DTU['PROFIL_LONGUEUR'],
+                ],
             ],
         ]);
     }
@@ -505,194 +523,49 @@ class QuotationController extends Controller
     public function stats(Request $request): JsonResponse
     {
         $user = $request->user();
-        $now = Carbon::now();
-        $startOfMonth = $now->copy()->startOfMonth();
-        $startOfLastMonth = $now->copy()->subMonth()->startOfMonth();
-        $endOfLastMonth = $now->copy()->subMonth()->endOfMonth();
 
-        // ============ STATISTIQUES DE BASE ============
-        $baseQuery = Quotation::where('user_id', $user->id);
-        
-        // Compteurs par statut (tout le temps)
-        $total = (clone $baseQuery)->count();
-        $draft = (clone $baseQuery)->where('status', 'draft')->count();
-        $sent = (clone $baseQuery)->where('status', 'sent')->count();
-        $accepted = (clone $baseQuery)->where('status', 'accepted')->count();
-        $rejected = (clone $baseQuery)->where('status', 'rejected')->count();
-        $expired = (clone $baseQuery)->where('status', 'expired')->count();
-        
-        // Pending = sent (en attente de réponse)
-        $pending = $sent;
-
-        // ============ CHIFFRE D'AFFAIRES ============
-        // CA total (devis acceptés)
-        $totalRevenue = (clone $baseQuery)
-            ->where('status', 'accepted')
-            ->sum('total_ttc');
-
-        // CA ce mois
-        $revenueThisMonth = (clone $baseQuery)
-            ->where('status', 'accepted')
-            ->where('accepted_at', '>=', $startOfMonth)
-            ->sum('total_ttc');
-
-        // CA mois dernier
-        $revenueLastMonth = (clone $baseQuery)
-            ->where('status', 'accepted')
-            ->whereBetween('accepted_at', [$startOfLastMonth, $endOfLastMonth])
-            ->sum('total_ttc');
-
-        // Variation CA
-        $revenueTrend = $revenueLastMonth > 0 
-            ? round((($revenueThisMonth - $revenueLastMonth) / $revenueLastMonth) * 100, 1)
-            : ($revenueThisMonth > 0 ? 100 : 0);
-
-        // ============ DEVIS CE MOIS ============
-        $quotationsThisMonth = (clone $baseQuery)
-            ->where('created_at', '>=', $startOfMonth)
-            ->count();
-
-        $quotationsLastMonth = (clone $baseQuery)
-            ->whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])
-            ->count();
-
-        $quotationsTrend = $quotationsLastMonth > 0
-            ? $quotationsThisMonth - $quotationsLastMonth
-            : $quotationsThisMonth;
-
-        // ============ TAUX DE CONVERSION ============
-        // Conversion = acceptés / (acceptés + refusés) * 100
-        $totalProcessed = $accepted + $rejected;
-        $conversionRate = $totalProcessed > 0 
-            ? round(($accepted / $totalProcessed) * 100, 1) 
-            : 0;
-
-        // Conversion mois dernier
-        $acceptedLastMonth = (clone $baseQuery)
-            ->where('status', 'accepted')
-            ->whereBetween('accepted_at', [$startOfLastMonth, $endOfLastMonth])
-            ->count();
-        $rejectedLastMonth = (clone $baseQuery)
-            ->where('status', 'rejected')
-            ->whereBetween('updated_at', [$startOfLastMonth, $endOfLastMonth])
-            ->count();
-        $processedLastMonth = $acceptedLastMonth + $rejectedLastMonth;
-        $conversionLastMonth = $processedLastMonth > 0
-            ? round(($acceptedLastMonth / $processedLastMonth) * 100, 1)
-            : 0;
-
-        $conversionTrend = $conversionRate - $conversionLastMonth;
-
-        // ============ MONTANTS EN ATTENTE ============
-        $pendingAmount = (clone $baseQuery)
-            ->whereIn('status', ['draft', 'sent'])
-            ->sum('total_ttc');
-
-        // ============ ÉVOLUTION MENSUELLE (6 derniers mois) ============
-        $monthlyData = [];
-        for ($i = 5; $i >= 0; $i--) {
-            $monthStart = $now->copy()->subMonths($i)->startOfMonth();
-            $monthEnd = $now->copy()->subMonths($i)->endOfMonth();
-            $monthName = $monthStart->locale('fr')->isoFormat('MMM');
-
-            $monthRevenue = Quotation::where('user_id', $user->id)
+        $stats = [
+            'total' => Quotation::where('user_id', $user->id)->count(),
+            'draft' => Quotation::where('user_id', $user->id)->where('status', 'draft')->count(),
+            'sent' => Quotation::where('user_id', $user->id)->where('status', 'sent')->count(),
+            'accepted' => Quotation::where('user_id', $user->id)->where('status', 'accepted')->count(),
+            'rejected' => Quotation::where('user_id', $user->id)->where('status', 'rejected')->count(),
+            'total_accepted_amount' => Quotation::where('user_id', $user->id)
                 ->where('status', 'accepted')
-                ->whereBetween('accepted_at', [$monthStart, $monthEnd])
-                ->sum('total_ttc');
-
-            $monthQuotations = Quotation::where('user_id', $user->id)
-                ->whereBetween('created_at', [$monthStart, $monthEnd])
-                ->count();
-
-            $monthlyData[] = [
-                'name' => ucfirst($monthName),
-                'ca' => round($monthRevenue, 0),
-                'devis' => $monthQuotations,
-            ];
-        }
-
-        // ============ RÉPARTITION PAR STATUT ============
-        $statusDistribution = [
-            ['name' => 'Acceptés', 'value' => $accepted, 'color' => '#22c55e'],
-            ['name' => 'En attente', 'value' => $sent, 'color' => '#3b82f6'],
-            ['name' => 'Refusés', 'value' => $rejected, 'color' => '#ef4444'],
-            ['name' => 'Brouillons', 'value' => $draft, 'color' => '#9ca3af'],
+                ->sum('total_ttc'),
+            'total_pending_amount' => Quotation::where('user_id', $user->id)
+                ->whereIn('status', ['draft', 'sent'])
+                ->sum('total_ttc'),
         ];
 
-        // ============ RÉPARTITION PAR TYPE DE TRAVAUX ============
-        $workTypeStats = QuotationWork::select('work_type', DB::raw('COUNT(*) as count'))
-            ->whereHas('room.quotation', function ($q) use ($user) {
-                $q->where('user_id', $user->id);
-            })
-            ->groupBy('work_type')
-            ->orderByDesc('count')
-            ->get()
-            ->map(function ($item) {
-                $colors = [
-                    'plafond_ba13' => '#9E3D36',
-                    'cloison' => '#c45d55',
-                    'habillage_mur' => '#d4817b',
-                    'gaine_creuse' => '#e5a5a0',
-                ];
-                $labels = [
-                    'plafond_ba13' => 'Plafond BA13',
-                    'cloison' => 'Cloison',
-                    'habillage_mur' => 'Habillage mur',
-                    'gaine_creuse' => 'Gaine creuse',
-                ];
-                return [
-                    'name' => $labels[$item->work_type] ?? $item->work_type,
-                    'count' => $item->count,
-                    'fill' => $colors[$item->work_type] ?? '#9E3D36',
-                ];
-            });
+        // Taux de conversion
+        $totalProcessed = $stats['accepted'] + $stats['rejected'];
+        $stats['conversion_rate'] = $totalProcessed > 0 
+            ? round(($stats['accepted'] / $totalProcessed) * 100, 1) 
+            : 0;
 
-        // ============ DEVIS EXPIRANTS BIENTÔT ============
-        $expiringCount = (clone $baseQuery)
-            ->where('status', 'sent')
-            ->whereNotNull('validity_date')
-            ->where('validity_date', '<=', $now->copy()->addDays(7))
-            ->where('validity_date', '>', $now)
-            ->count();
-
-        // ============ RÉPONSE ============
         return response()->json([
             'success' => true,
-            'data' => [
-                // Compteurs de base
-                'total' => $total,
-                'draft' => $draft,
-                'sent' => $sent,
-                'accepted' => $accepted,
-                'rejected' => $rejected,
-                'expired' => $expired,
-                'pending' => $pending,
-
-                // Chiffre d'affaires
-                'total_revenue' => round($totalRevenue, 0),
-                'revenue_this_month' => round($revenueThisMonth, 0),
-                'revenue_last_month' => round($revenueLastMonth, 0),
-                'revenue_trend' => $revenueTrend,
-
-                // Devis ce mois
-                'quotations_this_month' => $quotationsThisMonth,
-                'quotations_trend' => $quotationsTrend,
-
-                // Taux de conversion
-                'conversion_rate' => $conversionRate,
-                'conversion_trend' => round($conversionTrend, 1),
-
-                // Montants
-                'pending_amount' => round($pendingAmount, 0),
-
-                // Données pour graphiques
-                'monthly_data' => $monthlyData,
-                'status_distribution' => $statusDistribution,
-                'work_type_distribution' => $workTypeStats,
-
-                // Alertes
-                'expiring_soon' => $expiringCount,
-            ],
+            'data' => $stats,
         ]);
+    }
+
+    public function exportPdf(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $quotation = Quotation::with(['rooms.works.items', 'user', 'company'])
+            ->where('user_id', $user->id)
+            ->findOrFail($id);
+
+        // Générer le PDF avec les informations DTU
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.quotation', [
+            'quotation' => $quotation,
+            'dtu_notice' => 'Les calculs et quantités issus de ce document sont établis conformément aux règles de calcul et de mise en œuvre du DTU 25.41. Ils sont destinés à un usage de simulation et peuvent être ajustés selon les contraintes réelles du chantier.',
+        ]);
+
+        $pdf->setPaper('a4');
+
+        return $pdf->download("devis-{$quotation->reference}.pdf");
     }
 }

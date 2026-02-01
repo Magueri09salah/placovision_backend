@@ -43,6 +43,10 @@ class QuotationResource extends JsonResource
             
             // Notes
             'notes' => $this->notes,
+
+            // ✅ QR Code - URL publique pour accès au PDF
+            'public_token' => $this->public_token,
+            'public_pdf_url' => $this->public_pdf_url,
             
             // Relations
             'rooms' => QuotationRoomResource::collection($this->whenLoaded('rooms')),

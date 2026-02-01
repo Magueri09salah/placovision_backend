@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Str;
 
 class Quotation extends Model
 {
@@ -31,6 +32,7 @@ class Quotation extends Model
         'discount_percent',
         'discount_amount',
         'status',
+        'public_token',
         'validity_date',
         'accepted_at',
         'notes',
@@ -101,6 +103,24 @@ class Quotation extends Model
     public function works(): HasManyThrough
     {
         return $this->hasManyThrough(QuotationWork::class, QuotationRoom::class);
+    }
+
+     // ========== QR CODE METHODS ==========
+
+    /**
+     * Obtenir l'URL publique du PDF pour le QR code
+     */
+    public function getPublicPdfUrlAttribute(): string
+    {
+        return url("/api/pdf/{$this->public_token}");
+    }
+
+    /**
+     * Générer un nouveau token public
+     */
+    public function regeneratePublicToken(): void
+    {
+        $this->update(['public_token' => Str::random(32)]);
     }
 
     // ========== METHODES ==========

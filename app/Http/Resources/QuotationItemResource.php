@@ -11,7 +11,6 @@ class QuotationItemResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'product_id' => $this->product_id,
             'designation' => $this->designation,
             'description' => $this->description,
             'quantity_calculated' => (float) $this->quantity_calculated,
@@ -19,7 +18,7 @@ class QuotationItemResource extends JsonResource
             'unit' => $this->unit,
             'unit_price' => (float) $this->unit_price,
             'total_ht' => (float) $this->total_ht,
-            'is_modified' => $this->is_modified,
+            'is_modified' => (bool) $this->is_modified,
             'sort_order' => $this->sort_order,
         ];
     }
