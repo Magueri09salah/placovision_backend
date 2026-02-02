@@ -492,8 +492,8 @@
     </div>
 </div>
 
-<div style="margin-top : 100px">
-    <p>Mention DTU 25.41 : Les calculs et quantités de ce devis sont établis conformément aux règles de calcul et de mise en œuvre du DTU 25.41. Ils sont destinés à un usage de simulation et peuvent être ajustés selon les contraintes réelles du chantier.</p>
+<div style="margin-top : 80px">
+    <p><strong>DTU 25.41 :</strong> Les calculs et quantités de ce devis sont établis conformément aux règles de calcul et de mise en œuvre du DTU 25.41. Ils sont destinés à un usage de simulation et peuvent être ajustés selon les contraintes réelles du chantier.</p>
 </div>
 
 
