@@ -108,10 +108,12 @@ class QuotationController extends Controller
                             $longueur = $workData['longueur'] ?? 0;
                             $hauteur = $workData['hauteur'] ?? 0;
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
+                            $epaisseur = $workData['epaisseur'] ?? '72';
                             
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
                                 'work_type' => $workData['work_type'],
+                                'epaisseur' => $epaisseur,
                                 'longueur' => $longueur,
                                 'hauteur' => $hauteur,
                                 'surface' => $surface,
@@ -241,10 +243,12 @@ class QuotationController extends Controller
                             $longueur = $workData['longueur'] ?? 0;
                             $hauteur = $workData['hauteur'] ?? 0;
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
+                            $epaisseur = $workData['epaisseur'] ?? '72';
                             
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
                                 'work_type' => $workData['work_type'],
+                                'epaisseur' => $epaisseur,
                                 'longueur' => $longueur,
                                 'hauteur' => $hauteur,
                                 'surface' => $surface,
@@ -440,20 +444,23 @@ class QuotationController extends Controller
     public function simulate(Request $request): JsonResponse
     {
         $request->validate([
-            'work_type' => 'required|in:habillage_mur,plafond_ba13,cloison_simple,cloison_double,gaine_technique',
+            'work_type' => 'required|in:habillage_mur,cloison,plafond_ba13',
             'longueur' => 'required|numeric|min:0.1',
             'hauteur' => 'required|numeric|min:0.1',
             'room_type' => 'nullable|string',
+            'epaisseur' => 'nullable|string|in:72,100,140',
         ]);
 
         $workType = $request->work_type;
         $longueur = $request->longueur;
         $hauteur = $request->hauteur;
         $surface = $longueur * $hauteur;
+        $epaisseur = $request->epaisseur ?? '72';
 
         // Créer un work temporaire pour le calcul
         $tempWork = new QuotationWork([
             'work_type' => $workType,
+            'epaisseur' => $epaisseur,
             'longueur' => $longueur,
             'hauteur' => $hauteur,
             'surface' => $surface,
@@ -475,6 +482,7 @@ class QuotationController extends Controller
                 'work_type' => $workType,
                 'work_type_label' => QuotationWork::WORK_TYPES[$workType]['label'] ?? $workType,
                 'work_type_description' => QuotationWork::WORK_TYPES[$workType]['description'] ?? '',
+                'epaisseur' => $epaisseur,
                 'longueur' => $longueur,
                 'hauteur' => $hauteur,
                 'surface' => round($surface, 2),
@@ -505,6 +513,7 @@ class QuotationController extends Controller
                         'unit_label' => $type['unit'] === 'm2' ? 'm²' : 'ml',
                     ];
                 })->values(),
+                'epaisseur_options' => QuotationWork::EPAISSEUR_OPTIONS,
                 'statuses' => Quotation::getStatusLabels(),
                 'dtu' => [
                     'version' => '25.41',
@@ -523,13 +532,19 @@ class QuotationController extends Controller
     public function stats(Request $request): JsonResponse
     {
         $user = $request->user();
+        $now = Carbon::now();
+        $startOfMonth = $now->copy()->startOfMonth();
+        $startOfLastMonth = $now->copy()->subMonth()->startOfMonth();
+        $endOfLastMonth = $now->copy()->subMonth()->endOfMonth();
 
+        // Statistiques de base
         $stats = [
             'total' => Quotation::where('user_id', $user->id)->count(),
             'draft' => Quotation::where('user_id', $user->id)->where('status', 'draft')->count(),
             'sent' => Quotation::where('user_id', $user->id)->where('status', 'sent')->count(),
             'accepted' => Quotation::where('user_id', $user->id)->where('status', 'accepted')->count(),
             'rejected' => Quotation::where('user_id', $user->id)->where('status', 'rejected')->count(),
+            'pending' => Quotation::where('user_id', $user->id)->whereIn('status', ['draft', 'sent'])->count(),
             'total_accepted_amount' => Quotation::where('user_id', $user->id)
                 ->where('status', 'accepted')
                 ->sum('total_ttc'),
@@ -538,11 +553,98 @@ class QuotationController extends Controller
                 ->sum('total_ttc'),
         ];
 
+        // Devis ce mois-ci
+        $quotationsThisMonth = Quotation::where('user_id', $user->id)
+            ->where('created_at', '>=', $startOfMonth)
+            ->count();
+
+        // Devis le mois dernier
+        $quotationsLastMonth = Quotation::where('user_id', $user->id)
+            ->whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])
+            ->count();
+
+        $stats['quotations_this_month'] = $quotationsThisMonth;
+        $stats['quotations_trend'] = $quotationsThisMonth - $quotationsLastMonth;
+
         // Taux de conversion
         $totalProcessed = $stats['accepted'] + $stats['rejected'];
         $stats['conversion_rate'] = $totalProcessed > 0 
             ? round(($stats['accepted'] / $totalProcessed) * 100, 1) 
             : 0;
+
+        // Taux de conversion le mois dernier pour comparaison
+        $acceptedLastMonth = Quotation::where('user_id', $user->id)
+            ->where('status', 'accepted')
+            ->whereBetween('updated_at', [$startOfLastMonth, $endOfLastMonth])
+            ->count();
+        $rejectedLastMonth = Quotation::where('user_id', $user->id)
+            ->where('status', 'rejected')
+            ->whereBetween('updated_at', [$startOfLastMonth, $endOfLastMonth])
+            ->count();
+        $totalProcessedLastMonth = $acceptedLastMonth + $rejectedLastMonth;
+        $conversionRateLastMonth = $totalProcessedLastMonth > 0 
+            ? round(($acceptedLastMonth / $totalProcessedLastMonth) * 100, 1) 
+            : 0;
+        $stats['conversion_trend'] = round($stats['conversion_rate'] - $conversionRateLastMonth, 1);
+
+        // ✅ Distribution des types de travaux
+        $workTypeLabels = [
+            'habillage_mur' => 'Habillage mur',
+            'cloison' => 'Cloison',
+            'plafond_ba13' => 'Plafond BA13',
+            // Anciens types pour compatibilité
+            'cloison_simple' => 'Cloison simple',
+            'cloison_double' => 'Cloison double',
+            // 'gaine_technique' => 'Gaine technique',
+        ];
+
+        $workTypeColors = [
+            'habillage_mur' => '#9E3D36',
+            'cloison' => '#3B82F6',
+            'plafond_ba13' => '#10B981',
+            'cloison_simple' => '#F59E0B',
+            'cloison_double' => '#8B5CF6',
+            // 'gaine_technique' => '#EC4899',
+        ];
+
+        $workTypeCounts = QuotationWork::whereHas('room.quotation', function ($q) use ($user) {
+            $q->where('user_id', $user->id);
+        })
+        ->select('work_type', DB::raw('count(*) as count'))
+        ->groupBy('work_type')
+        ->get();
+
+        $stats['work_type_distribution'] = $workTypeCounts->map(function ($item) use ($workTypeLabels, $workTypeColors) {
+            return [
+                'name' => $workTypeLabels[$item->work_type] ?? $item->work_type,
+                'count' => $item->count,
+                'fill' => $workTypeColors[$item->work_type] ?? '#6B7280',
+            ];
+        })->values()->toArray();
+
+        // ✅ Données mensuelles pour le graphique (6 derniers mois)
+        $monthlyData = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $month = $now->copy()->subMonths($i);
+            $startOfMonth = $month->copy()->startOfMonth();
+            $endOfMonth = $month->copy()->endOfMonth();
+
+            $monthCA = Quotation::where('user_id', $user->id)
+                ->where('status', 'accepted')
+                ->whereBetween('accepted_at', [$startOfMonth, $endOfMonth])
+                ->sum('total_ttc');
+
+            $monthQuotations = Quotation::where('user_id', $user->id)
+                ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
+                ->count();
+
+            $monthlyData[] = [
+                'name' => $month->translatedFormat('M'),
+                'ca' => round($monthCA, 2),
+                'devis' => $monthQuotations,
+            ];
+        }
+        $stats['monthly_data'] = $monthlyData;
 
         return response()->json([
             'success' => true,
