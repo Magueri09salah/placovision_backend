@@ -189,10 +189,11 @@ class QuotationWork extends Model
                 // Plaques
                 $addMaterial($plaque['designation'], self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
                 
-                // Montants : lignes verticales × montants par ligne (si H > 3m)
-                $nbLignesMontants = self::arrondiSup(($L / 0.30) + 1);
+                // Montants : formule = 2 × (Lignes - 1) × Montants/ligne
+                // Doublement des lignes intérieures, retrait de 2 par ligne
+                $nbLignesMontants = self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1);
                 $montantsParLigne = max(1, self::arrondiSup($H / self::DTU['PROFIL_LONGUEUR']));
-                $totalMontants = $nbLignesMontants * $montantsParLigne;
+                $totalMontants = 2 * ($nbLignesMontants - 1) * $montantsParLigne;
                 $addMaterial('Montant M48', $totalMontants, 'unité', self::PRIX_UNITAIRES['montant_48']);
                 
                 // Rails : haut + bas
@@ -215,10 +216,11 @@ class QuotationWork extends Model
                 // Plaques (2 faces)
                 $addMaterial($plaque['designation'], self::arrondiSup(($surface * 2) / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
                 
-                // Montants : lignes verticales × montants par ligne (si H > 3m)
-                $nbLignesMontants = self::arrondiSup(($L / 0.30) + 1);
+                // Montants : formule = 2 × (Lignes - 1) × Montants/ligne
+                // Doublement des lignes intérieures, retrait de 2 par ligne
+                $nbLignesMontants = self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1);
                 $montantsParLigne = max(1, self::arrondiSup($H / self::DTU['PROFIL_LONGUEUR']));
-                $totalMontants = $nbLignesMontants * $montantsParLigne;
+                $totalMontants = 2 * ($nbLignesMontants - 1) * $montantsParLigne;
                 
                 // Rails : haut + bas
                 $totalRails = self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']);
