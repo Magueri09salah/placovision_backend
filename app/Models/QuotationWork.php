@@ -14,6 +14,7 @@ class QuotationWork extends Model
     protected $fillable = [
         'quotation_room_id',
         'work_type',
+        'epaisseur',
         'longueur',
         'hauteur',
         'surface',
@@ -29,41 +30,24 @@ class QuotationWork extends Model
         'subtotal_ht' => 'decimal:2',
     ];
 
-    /**
-     * Hypothèses générales DTU 25.41
-     */
     public const DTU = [
-        'ENTRAXE' => 0.60,           // Entraxe standard : 60 cm
-        'PLAQUE_SURFACE' => 3.00,     // Plaque BA13 standard : 120 × 250 cm = 3 m²
-        'PROFIL_LONGUEUR' => 3.00,    // Longueur standard des profils : 3 m
-        'VIS_PAR_BOITE' => 1000,      // Nombre de vis par boîte
-        'KG_PAR_SAC_ENDUIT' => 25,    // 25 kg par sac d'enduit
-        'BANDE_ROULEAU_150' => 150,   // Rouleau de bande à joint 150 m
-        'BANDE_ROULEAU_300' => 300,   // Rouleau de bande à joint 300 m
+        'ENTRAXE' => 0.60,
+        'PLAQUE_SURFACE' => 3.00,
+        'PROFIL_LONGUEUR' => 3.00,
+        'VIS_PAR_BOITE' => 1000,
+        'KG_PAR_SAC_ENDUIT' => 25,
     ];
 
-    /**
-     * Types d'ouvrages selon DTU 25.41
-     */
+    // ✅ 3 types simplifiés
     public const WORK_TYPES = [
         'habillage_mur' => [
             'label' => 'Habillage BA13 / Contre-cloison',
             'description' => 'Ouvrage vertical – 1 face',
             'unit' => 'm2',
         ],
-        'cloison_simple' => [
-            'label' => 'Cloison simple ossature',
-            'description' => 'M48 / M70 / M90',
-            'unit' => 'm2',
-        ],
-        'cloison_double' => [
-            'label' => 'Cloison double ossature',
-            'description' => 'Épaisseur ≥ 140mm',
-            'unit' => 'm2',
-        ],
-        'gaine_technique' => [
-            'label' => 'Gaine technique BA13',
-            'description' => 'Ouvrage vertical technique',
+        'cloison' => [
+            'label' => 'Cloison',
+            'description' => 'Selon épaisseur : M48/M70/Double',
             'unit' => 'm2',
         ],
         'plafond_ba13' => [
@@ -73,33 +57,32 @@ class QuotationWork extends Model
         ],
     ];
 
-    /**
-     * Prix unitaires en DH
-     */
-    public const PRIX_UNITAIRES = [
-        'plaque_ba13_standard' => 24.00,
-        'plaque_hydro' => 34.20,
-        'plaque_feu' => 00.00,
-        'montant_48' => 26.16,
-        'montant_70' => 33.00,
-        'montant_90' => 00.00,
-        'rail_48' => 21.12,
-        'rail_70' => 28.20,
-        'rail_90' => 00.00,
-        'fourrure' => 21.12,
-        'isolant' => 00.00,           // par m²
-        'vis_25mm_boite' => 62.40,   // boîte de 1000
-        'vis_9mm_boite' => 69.60,    // boîte de 1000
-        'suspente' => 00.00,
-        'corniere' => 13.44,
-        'bande_joint_150' => 48.00,   // rouleau 150m
-        'bande_joint_300' => 85.00,   // rouleau 300m
-        'enduit_sac' => 163.20,       // sac de 25kg
+    // ✅ Épaisseur cloison
+    public const EPAISSEUR_OPTIONS = [
+        '72' => ['montant' => 'montant_48', 'rail' => 'rail_48', 'is_double' => false, 'label' => '≤ 72 mm (M48/R48)'],
+        '100' => ['montant' => 'montant_70', 'rail' => 'rail_70', 'is_double' => false, 'label' => '≤ 100 mm (M70/R70)'],
+        '140' => ['montant' => 'montant_48', 'rail' => 'rail_48', 'is_double' => true, 'label' => '≥ 140 mm (Double M48/R48)'],
     ];
 
-   /**
-     * Type de plaque selon le type de pièce
-     */
+    public const PRIX_UNITAIRES = [
+        'plaque_ba13_standard' => 24.12,
+        'plaque_hydro' => 34.20,
+        'plaque_feu' => 0.00,
+        'montant_48' => 26.16,
+        'montant_70' => 33.00,
+        'rail_48' => 21.12,
+        'rail_70' => 28.20,
+        'fourrure' => 21.12,
+        'isolant' => 0.00,
+        'vis_25mm_boite' => 62.40,
+        'vis_9mm_boite' => 69.60,
+        'suspente' => 0.00,
+        'corniere' => 13.44,
+        'bande_joint_150' => 48.00,
+        'bande_joint_300' => 85.00,
+        'enduit_sac' => 163.20,
+    ];
+
     public const PLAQUE_BY_ROOM = [
         'salon_sejour' => ['designation' => 'Plaque BA13 standard', 'prix_key' => 'plaque_ba13_standard'],
         'chambre' => ['designation' => 'Plaque BA13 standard', 'prix_key' => 'plaque_ba13_standard'],
@@ -112,8 +95,6 @@ class QuotationWork extends Model
         'autre' => ['designation' => 'Plaque BA13 standard', 'prix_key' => 'plaque_ba13_standard'],
     ];
 
-    // ========== RELATIONS ==========
-
     public function room(): BelongsTo
     {
         return $this->belongsTo(QuotationRoom::class, 'quotation_room_id');
@@ -123,8 +104,6 @@ class QuotationWork extends Model
     {
         return $this->hasMany(QuotationItem::class)->orderBy('sort_order');
     }
-
-    // ========== METHODES ==========
 
     public function getWorkTypeLabelAttribute(): string
     {
@@ -141,85 +120,57 @@ class QuotationWork extends Model
         return $this->unit === 'm2' ? 'm²' : 'ml';
     }
 
-    /**
-     * Arrondi à l'unité supérieure (règle DTU)
-     */
+    public function getEpaisseurLabelAttribute(): string
+    {
+        return self::EPAISSEUR_OPTIONS[$this->epaisseur]['label'] ?? '';
+    }
+
     private static function arrondiSup(float $value): int
     {
         return (int) ceil($value);
     }
 
-     /**
-     * Convertit les vis en nombre de boîtes (1 boîte = 1000 vis, minimum 1)
-     */
     private static function visToBoites(int $nombreVis): int
     {
         if ($nombreVis <= 0) return 0;
         return max(1, self::arrondiSup($nombreVis / self::DTU['VIS_PAR_BOITE']));
     }
 
-     /**
-     * Convertit les kg d'enduit en sacs (1 sac = 25 kg)
-     */
     private static function kgToSacs(float $kg): int
     {
         if ($kg <= 0) return 0;
         return self::arrondiSup($kg / self::DTU['KG_PAR_SAC_ENDUIT']);
     }
 
-    /**
-     * Convertit les mètres linéaires de bande à joint en rouleaux
-     */
     private static function bandeToRouleaux(float $ml): array
     {
-        if ($ml <= 0) {
-            return ['designation' => 'Bande à joint 150m', 'quantity' => 0, 'prix_key' => 'bande_joint_150'];
-        }
-
-        if ($ml <= 150) {
-            return ['designation' => 'Bande à joint 150m', 'quantity' => 1, 'prix_key' => 'bande_joint_150'];
-        } elseif ($ml <= 300) {
-            return ['designation' => 'Bande à joint 300m', 'quantity' => 1, 'prix_key' => 'bande_joint_300'];
-        } else {
-            $nbRouleaux = self::arrondiSup($ml / 300);
-            return ['designation' => 'Bande à joint 300m', 'quantity' => $nbRouleaux, 'prix_key' => 'bande_joint_300'];
-        }
+        if ($ml <= 0) return ['designation' => 'Bande à joint 150m', 'quantity' => 0, 'prix_key' => 'bande_joint_150'];
+        if ($ml <= 150) return ['designation' => 'Bande à joint 150m', 'quantity' => 1, 'prix_key' => 'bande_joint_150'];
+        if ($ml <= 300) return ['designation' => 'Bande à joint 300m', 'quantity' => 1, 'prix_key' => 'bande_joint_300'];
+        return ['designation' => 'Bande à joint 300m', 'quantity' => self::arrondiSup($ml / 300), 'prix_key' => 'bande_joint_300'];
     }
 
-    /**
-     * Obtenir le type de plaque selon la pièce
-     */
     private function getPlaqueInfo(): array
     {
         $roomType = $this->room->room_type ?? 'autre';
         $plaqueInfo = self::PLAQUE_BY_ROOM[$roomType] ?? self::PLAQUE_BY_ROOM['autre'];
-        
         return [
             'designation' => $plaqueInfo['designation'],
             'prix' => self::PRIX_UNITAIRES[$plaqueInfo['prix_key']] ?? self::PRIX_UNITAIRES['plaque_ba13_standard'],
         ];
     }
 
-
-
-    /**
-     * Calculer les matériaux nécessaires selon les formules DTU 25.41
-     */
     public function calculateMaterials(): array
     {
         $L = (float) ($this->longueur ?? 0);
         $H = (float) ($this->hauteur ?? 0);
         $surface = $L * $H;
-
-        if ($surface <= 0) {
-            return [];
-        }
+        if ($surface <= 0) return [];
 
         $plaque = $this->getPlaqueInfo();
         $materials = [];
         $index = 0;
 
-        // Helper pour ajouter un matériau
         $addMaterial = function($designation, $quantity, $unit, $unitPrice) use (&$materials, &$index) {
             $materials[] = [
                 'designation' => $designation,
@@ -234,224 +185,70 @@ class QuotationWork extends Model
         };
 
         switch ($this->work_type) {
-            // ============ 1. HABILLAGE BA13 / CONTRE-CLOISON ============
             case 'habillage_mur':
-                // Plaques BA13 = Surface ÷ 3
-                $nbPlaques = self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']);
-                $addMaterial($plaque['designation'], $nbPlaques, 'unité', $plaque['prix']);
-
-                // Montants = (L ÷ 0,60) + 1
-                $nbMontants = self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1);
-                $addMaterial('Montant 48', $nbMontants, 'unité', self::PRIX_UNITAIRES['montant_48']);
-
-                // Rails = (L × 2) ÷ 3,00
-                $nbRails = self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']);
-                $addMaterial('Rail 48', $nbRails, 'unité', self::PRIX_UNITAIRES['rail_48']);
-
-                // Isolant = Surface (m²)
-                $isolant = self::arrondiSup($surface);
-                $addMaterial('Isolant (laine de verre)', $isolant, 'm²', self::PRIX_UNITAIRES['isolant']);
-
-                // Vis TTPC 25 mm ≈ 20 vis / m²
-                $vis25 = self::arrondiSup($surface * 20);
-                $boitesVis25 = self::visToBoites($vis25);
-                $addMaterial('Vis TTPC 25 mm', $boitesVis25, 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
-
-                // Vis TTPC 9 mm ≈ 3 vis / m²
-                $vis9 = self::arrondiSup($surface * 3);
-                $boitesVis9 = self::visToBoites($vis9);
-                $addMaterial('Vis TTPC 9 mm', $boitesVis9, 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
-
-                // Bandes à joint ≈ 3 ml / m²
-                $bandeML = self::arrondiSup($surface * 3);
-                $bande = self::bandeToRouleaux($bandeML);
+                $addMaterial($plaque['designation'], self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
+                $addMaterial('Montant M48', self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1), 'unité', self::PRIX_UNITAIRES['montant_48']);
+                $addMaterial('Rail R48', self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES['rail_48']);
+                $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant']);
+                $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 20)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
+                $addMaterial('Vis TTPC 9 mm', self::visToBoites(self::arrondiSup($surface * 3)), 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
+                $bande = self::bandeToRouleaux(self::arrondiSup($surface * 3));
                 $addMaterial($bande['designation'], $bande['quantity'], 'rlx', self::PRIX_UNITAIRES[$bande['prix_key']]);
-
-                // Enduit ≈ 0,5 kg / m²
-                $enduitKg = $surface * 0.5;
-                $enduitSacs = self::kgToSacs($enduitKg);
-                $addMaterial('Enduit', $enduitSacs, 'sac', self::PRIX_UNITAIRES['enduit_sac']);
+                $addMaterial('Enduit', self::kgToSacs($surface * 0.5), 'sac', self::PRIX_UNITAIRES['enduit_sac']);
                 break;
 
-            // ============ 2. CLOISON SIMPLE OSSATURE ============
-            case 'cloison_simple':
-                // Plaques BA13 = (Surface × 2) ÷ 3 (2 faces)
-                $nbPlaques = self::arrondiSup(($surface * 2) / self::DTU['PLAQUE_SURFACE']);
-                $addMaterial($plaque['designation'], $nbPlaques, 'unité', $plaque['prix']);
+            case 'cloison':
+                $epaisseur = $this->epaisseur ?? '72';
+                $config = self::EPAISSEUR_OPTIONS[$epaisseur] ?? self::EPAISSEUR_OPTIONS['72'];
+                $isDouble = $config['is_double'];
+                $montantLabel = $config['montant'] === 'montant_48' ? 'Montant M48' : 'Montant M70';
+                $railLabel = $config['rail'] === 'rail_48' ? 'Rail R48' : 'Rail R70';
 
-                // Montants = (L ÷ 0,60) + 1
-                $nbMontants = self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1);
-                $addMaterial('Montant 70', $nbMontants, 'unité', self::PRIX_UNITAIRES['montant_70']);
-
-                // Rails = (L × 2) ÷ 3,00
-                $nbRails = self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']);
-                $addMaterial('Rail 70', $nbRails, 'unité', self::PRIX_UNITAIRES['rail_70']);
-
-                // Isolant = Surface (m²)
-                $isolant = self::arrondiSup($surface);
-                $addMaterial('Isolant (laine de verre)', $isolant, 'm²', self::PRIX_UNITAIRES['isolant']);
-
-                // Vis TTPC 25 mm ≈ 40 vis / m²
-                $vis25 = self::arrondiSup($surface * 40);
-                $boitesVis25 = self::visToBoites($vis25);
-                $addMaterial('Vis TTPC 25 mm', $boitesVis25, 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
-
-                // Vis TTPC 9 mm ≈ 4 vis / m²
-                $vis9 = self::arrondiSup($surface * 4);
-                $boitesVis9 = self::visToBoites($vis9);
-                $addMaterial('Vis TTPC 9 mm', $boitesVis9, 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
-
-                // Bandes à joint ≈ 6 ml / m²
-                $bandeML = self::arrondiSup($surface * 6);
-                $bande = self::bandeToRouleaux($bandeML);
+                $addMaterial($plaque['designation'], self::arrondiSup(($surface * 2) / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
+                
+                if ($isDouble) {
+                    $addMaterial($montantLabel, self::arrondiSup(2 * (($L / self::DTU['ENTRAXE']) + 1)), 'unité', self::PRIX_UNITAIRES[$config['montant']]);
+                    $addMaterial($railLabel, self::arrondiSup(2 * (($L * 2) / self::DTU['PROFIL_LONGUEUR'])), 'unité', self::PRIX_UNITAIRES[$config['rail']]);
+                    $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface * 2), 'm²', self::PRIX_UNITAIRES['isolant']);
+                    $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 45)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
+                    $addMaterial('Vis TTPC 9 mm', self::visToBoites(self::arrondiSup($surface * 6)), 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
+                } else {
+                    $addMaterial($montantLabel, self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1), 'unité', self::PRIX_UNITAIRES[$config['montant']]);
+                    $addMaterial($railLabel, self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES[$config['rail']]);
+                    $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant']);
+                    $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 40)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
+                    $addMaterial('Vis TTPC 9 mm', self::visToBoites(self::arrondiSup($surface * 4)), 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
+                }
+                $bande = self::bandeToRouleaux(self::arrondiSup($surface * 6));
                 $addMaterial($bande['designation'], $bande['quantity'], 'rlx', self::PRIX_UNITAIRES[$bande['prix_key']]);
-
-                // Enduit ≈ 1 kg / m²
-                $enduitKg = $surface * 1;
-                $enduitSacs = self::kgToSacs($enduitKg);
-                $addMaterial('Enduit', $enduitSacs, 'sac', self::PRIX_UNITAIRES['enduit_sac']);
+                $addMaterial('Enduit', self::kgToSacs($isDouble ? $surface * 1.2 : $surface), 'sac', self::PRIX_UNITAIRES['enduit_sac']);
                 break;
 
-            // ============ 3. CLOISON DOUBLE OSSATURE ============
-            case 'cloison_double':
-                // Plaques BA13 = (Surface × 2) ÷ 3 (2 faces)
-                $nbPlaques = self::arrondiSup(($surface * 2) / self::DTU['PLAQUE_SURFACE']);
-                $addMaterial($plaque['designation'], $nbPlaques, 'unité', $plaque['prix']);
-
-                // Montants = 2 × ((L ÷ 0,60) + 1) (double ossature)
-                $nbMontants = self::arrondiSup(2 * (($L / self::DTU['ENTRAXE']) + 1));
-                $addMaterial('Montant 70', $nbMontants, 'unité', self::PRIX_UNITAIRES['montant_70']);
-
-                // Rails = 2 × ((L × 2) ÷ 3,00)
-                $nbRails = self::arrondiSup(2 * (($L * 2) / self::DTU['PROFIL_LONGUEUR']));
-                $addMaterial('Rail 70', $nbRails, 'unité', self::PRIX_UNITAIRES['rail_70']);
-
-                // Isolant = Surface × 2 (m²)
-                $isolant = self::arrondiSup($surface * 2);
-                $addMaterial('Isolant (laine de verre)', $isolant, 'm²', self::PRIX_UNITAIRES['isolant']);
-
-                // Vis TTPC 25 mm ≈ 45 vis / m²
-                $vis25 = self::arrondiSup($surface * 45);
-                $boitesVis25 = self::visToBoites($vis25);
-                $addMaterial('Vis TTPC 25 mm', $boitesVis25, 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
-
-                // Vis TTPC 9 mm ≈ 6 vis / m²
-                $vis9 = self::arrondiSup($surface * 6);
-                $boitesVis9 = self::visToBoites($vis9);
-                $addMaterial('Vis TTPC 9 mm', $boitesVis9, 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
-
-                // Bandes à joint ≈ 6 ml / m²
-                $bandeML = self::arrondiSup($surface * 6);
-                $bande = self::bandeToRouleaux($bandeML);
-                $addMaterial($bande['designation'], $bande['quantity'], 'rlx', self::PRIX_UNITAIRES[$bande['prix_key']]);
-
-                // Enduit ≈ 1,2 kg / m²
-                $enduitKg = $surface * 1.2;
-                $enduitSacs = self::kgToSacs($enduitKg);
-                $addMaterial('Enduit', $enduitSacs, 'sac', self::PRIX_UNITAIRES['enduit_sac']);
-                break;
-
-            // ============ 4. GAINE TECHNIQUE BA13 ============
-            case 'gaine_technique':
-                // Plaques BA13 = Surface ÷ 3
-                $nbPlaques = self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']);
-                $addMaterial($plaque['designation'], $nbPlaques, 'unité', $plaque['prix']);
-
-                // Montants = (L ÷ 0,60) + 1 (L = développement)
-                $nbMontants = self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1);
-                $addMaterial('Montant 48', $nbMontants, 'unité', self::PRIX_UNITAIRES['montant_48']);
-
-                // Rails = (L × 2) ÷ 3,00
-                $nbRails = self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']);
-                $addMaterial('Rail 48', $nbRails, 'unité', self::PRIX_UNITAIRES['rail_48']);
-
-                // Vis TTPC 25 mm ≈ 15 vis / m²
-                $vis25 = self::arrondiSup($surface * 15);
-                $boitesVis25 = self::visToBoites($vis25);
-                $addMaterial('Vis TTPC 25 mm', $boitesVis25, 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
-
-                // Vis TTPC 9 mm ≈ 3 vis / m²
-                $vis9 = self::arrondiSup($surface * 3);
-                $boitesVis9 = self::visToBoites($vis9);
-                $addMaterial('Vis TTPC 9 mm', $boitesVis9, 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
-
-                // Bandes à joint ≈ 2 ml / m²
-                $bandeML = self::arrondiSup($surface * 2);
-                $bande = self::bandeToRouleaux($bandeML);
-                $addMaterial($bande['designation'], $bande['quantity'], 'rlx', self::PRIX_UNITAIRES[$bande['prix_key']]);
-
-                // Enduit ≈ 0,3 kg / m²
-                $enduitKg = $surface * 0.3;
-                $enduitSacs = self::kgToSacs($enduitKg);
-                $addMaterial('Enduit', $enduitSacs, 'sac', self::PRIX_UNITAIRES['enduit_sac']);
-                break;
-
-            // ============ 5. PLAFOND BA13 ============
             case 'plafond_ba13':
-                // Pour le plafond: L = longueur, H = largeur (l)
-                $l = $H; // largeur
-
-                // Plaques BA13 = Surface ÷ 3
-                $nbPlaques = self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']);
-                $addMaterial($plaque['designation'], $nbPlaques, 'unité', $plaque['prix']);
-
-                // Fourrures = (l ÷ 0,60) × L ÷ 3,00
-                $nbFourrures = self::arrondiSup(($l / self::DTU['ENTRAXE']) * $L / self::DTU['PROFIL_LONGUEUR']);
-                $addMaterial('Fourrure', $nbFourrures, 'unité', self::PRIX_UNITAIRES['fourrure']);
-
-                // Suspentes ≈ Surface × 2,5
-                $nbSuspentes = self::arrondiSup($surface * 2.5);
-                $addMaterial('Suspente', $nbSuspentes, 'unité', self::PRIX_UNITAIRES['suspente']);
-
-                // Cornières périphériques = ((L + l) × 2) ÷ 3,00
-                $nbCornieres = self::arrondiSup((($L + $l) * 2) / self::DTU['PROFIL_LONGUEUR']);
-                $addMaterial('Cornière périphérique', $nbCornieres, 'unité', self::PRIX_UNITAIRES['corniere']);
-
-                // Vis TTPC 25 mm ≈ 22 vis / m²
-                $vis25 = self::arrondiSup($surface * 22);
-                $boitesVis25 = self::visToBoites($vis25);
-                $addMaterial('Vis TTPC 25 mm', $boitesVis25, 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
-
-                // Bandes à joint ≈ 3 ml / m²
-                $bandeML = self::arrondiSup($surface * 3);
-                $bande = self::bandeToRouleaux($bandeML);
+                $l = $H;
+                $addMaterial($plaque['designation'], self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
+                $addMaterial('Fourrure', self::arrondiSup(($l / self::DTU['ENTRAXE']) * $L / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES['fourrure']);
+                $addMaterial('Suspente', self::arrondiSup($surface * 2.5), 'unité', self::PRIX_UNITAIRES['suspente']);
+                $addMaterial('Cornière périphérique', self::arrondiSup((($L + $l) * 2) / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES['corniere']);
+                $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 22)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
+                $bande = self::bandeToRouleaux(self::arrondiSup($surface * 3));
                 $addMaterial($bande['designation'], $bande['quantity'], 'rlx', self::PRIX_UNITAIRES[$bande['prix_key']]);
-
-                // Enduit ≈ 0,5 kg / m²
-                $enduitKg = $surface * 0.5;
-                $enduitSacs = self::kgToSacs($enduitKg);
-                $addMaterial('Enduit', $enduitSacs, 'sac', self::PRIX_UNITAIRES['enduit_sac']);
-                break;
-
-            default:
+                $addMaterial('Enduit', self::kgToSacs($surface * 0.5), 'sac', self::PRIX_UNITAIRES['enduit_sac']);
                 break;
         }
 
         return $materials;
     }
 
-    /**
-     * Générer les lignes de matériaux
-     */
     public function generateItems(): void
     {
-        // Supprimer les anciens items
         $this->items()->delete();
-
-        // Calculer et créer les nouveaux items
-        $materials = $this->calculateMaterials();
-
-        foreach ($materials as $material) {
+        foreach ($this->calculateMaterials() as $material) {
             $this->items()->create($material);
         }
-
-        // Recalculer le sous-total
         $this->recalculateSubtotal();
     }
 
-    /**
-     * Recalculer le sous-total du travail
-     */
     public function recalculateSubtotal(): void
     {
         $subtotal = $this->items()->sum(\DB::raw('quantity_adjusted * unit_price'));

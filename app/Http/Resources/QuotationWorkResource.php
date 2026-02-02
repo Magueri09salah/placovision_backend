@@ -14,6 +14,8 @@ class QuotationWorkResource extends JsonResource
             'work_type' => $this->work_type,
             'work_type_label' => $this->work_type_label,
             'surface' => (float) $this->surface,
+            'longueur' => $this->longueur,
+            'hauteur' => $this->hauteur,
             'unit' => $this->unit,
             'unit_label' => $this->unit_label,
             'subtotal_ht' => (float) $this->subtotal_ht,
