@@ -18,6 +18,7 @@ class QuotationWork extends Model
         'longueur',
         'hauteur',
         'surface',
+        'ouvertures',
         'unit',
         'subtotal_ht',
         'sort_order',
@@ -28,6 +29,7 @@ class QuotationWork extends Model
         'hauteur' => 'decimal:2',
         'surface' => 'decimal:2',
         'subtotal_ht' => 'decimal:2',
+        'ouvertures' => 'array',
     ];
 
     public const DTU = [
@@ -73,7 +75,7 @@ class QuotationWork extends Model
         'rail_48' => 21.12,
         'rail_70' => 28.20,
         'fourrure' => 21.12,
-        'isolant' => 0.00,
+        'isolant' => 18.00,
         'vis_25mm_boite' => 62.40,
         'vis_9mm_boite' => 69.60,
         'suspente' => 0.00,
@@ -186,8 +188,8 @@ class QuotationWork extends Model
 
         switch ($this->work_type) {
             case 'habillage_mur':
-                // Plaques
-                $addMaterial($plaque['designation'], self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
+                // Plaques (vendu au m²)
+                $addMaterial($plaque['designation'], self::arrondiSup($surface), 'm²', $plaque['prix']);
                 
                 // Montants : formule = 2 × (Lignes - 1) × Montants/ligne
                 // Doublement des lignes intérieures, retrait de 2 par ligne
@@ -213,8 +215,8 @@ class QuotationWork extends Model
                 $montantLabel = $config['montant'] === 'montant_48' ? 'Montant M48' : 'Montant M70';
                 $railLabel = $config['rail'] === 'rail_48' ? 'Rail R48' : 'Rail R70';
 
-                // Plaques (2 faces)
-                $addMaterial($plaque['designation'], self::arrondiSup(($surface * 2) / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
+                // Plaques (2 faces, vendu au m²)
+                $addMaterial($plaque['designation'], self::arrondiSup($surface * 2), 'm²', $plaque['prix']);
                 
                 // Montants : formule = 2 × (Lignes - 1) × Montants/ligne
                 // Doublement des lignes intérieures, retrait de 2 par ligne
@@ -247,7 +249,8 @@ class QuotationWork extends Model
 
             case 'plafond_ba13':
                 $l = $H;
-                $addMaterial($plaque['designation'], self::arrondiSup($surface / self::DTU['PLAQUE_SURFACE']), 'unité', $plaque['prix']);
+                // Plaques (vendu au m²)
+                $addMaterial($plaque['designation'], self::arrondiSup($surface), 'm²', $plaque['prix']);
                 $addMaterial('Fourrure', self::arrondiSup(($l / self::DTU['ENTRAXE']) * $L / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES['fourrure']);
                 $addMaterial('Suspente', self::arrondiSup($surface * 2.5), 'unité', self::PRIX_UNITAIRES['suspente']);
                 $addMaterial('Cornière périphérique', self::arrondiSup((($L + $l) * 2) / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES['corniere']);
