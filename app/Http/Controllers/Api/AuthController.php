@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Company;
 use Illuminate\Http\JsonResponse; 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password; 
@@ -75,7 +74,6 @@ class AuthController extends Controller
                             'last_name' => $user->last_name,
                             'full_name' => $user->fullName(),
                             'email' => $user->email,
-                            'account_type' => $user->account_type,
                             'avatar' => $user->avatar,
                             'roles' => $user->getRoleNames(),
                             'permissions' => $user->getAllPermissions()->pluck('name'),
@@ -85,21 +83,45 @@ class AuthController extends Controller
                     ]
                 ], 200);
             } else {
-                // USER N'EXISTE PAS → RETOURNER INFOS POUR CHOISIR TYPE COMPTE
+                // USER N'EXISTE PAS → CRÉER AUTOMATIQUEMENT
+                DB::beginTransaction();
+
+                $user = User::create([
+                    'first_name' => $googleFirstName,
+                    'last_name' => $googleLastName,
+                    'email' => $googleEmail,
+                    'password' => null,
+                    'google_id' => $googleId,
+                    'avatar' => $googleAvatar,
+                    'is_active' => true,
+                    'email_verified_at' => now(),
+                ]);
+
+                $user->assignRole('user');
+
+                $token = $user->createToken('auth_token')->plainTextToken;
+
+                DB::commit();
+
                 return response()->json([
                     'success' => true,
-                    'action' => 'choose_account_type',
-                    'message' => 'Compte non trouvé. Veuillez choisir votre type de compte.',
+                    'message' => 'Inscription réussie.',
+                    'action' => 'registered',
                     'data' => [
-                        'google_data' => [
-                            'email' => $googleEmail,
-                            'first_name' => $googleFirstName,
-                            'last_name' => $googleLastName,
-                            'avatar' => $googleAvatar,
-                            'google_id' => $googleId,
-                        ]
+                        'user' => [
+                            'id' => $user->id,
+                            'first_name' => $user->first_name,
+                            'last_name' => $user->last_name,
+                            'full_name' => $user->fullName(),
+                            'email' => $user->email,
+                            'avatar' => $user->avatar,
+                            'roles' => $user->getRoleNames(),
+                            'permissions' => $user->getAllPermissions()->pluck('name'),
+                        ],
+                        'token' => $token,
+                        'token_type' => 'Bearer',
                     ]
-                ], 200);
+                ], 201);
             }
 
         } catch (\Google_Exception $e) {
@@ -108,6 +130,7 @@ class AuthController extends Controller
                 'message' => 'Erreur de validation du token Google.',
             ], 401);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'authentification Google.',
@@ -116,106 +139,10 @@ class AuthController extends Controller
         }
     }
 
-    public function googleAuthComplete(Request $request)
-    {
-        $validated = $request->validate([
-            'google_id' => 'required|string',
-            'email' => 'required|email|unique:users,email',
-            'first_name' => 'required|string|max:100',
-            'last_name' => 'required|string|max:100',
-            'avatar' => 'nullable|string',
-            'phone' => 'nullable|string|max:20',
-            'account_type' => 'required|in:particulier,professionnel',
-
-            // Champs entreprise (obligatoires si professionnel)
-            'company_name' => 'nullable|required_if:account_type,professionnel|string|max:255',
-            'company_ice' => 'nullable|string|max:50',
-            'company_address' => 'nullable|string|max:255',
-            'company_city' => 'nullable|string|max:100',
-            'company_phone' => 'nullable|string|max:20',
-        ], [
-            'email.unique' => 'Cet email est déjà utilisé.',
-            'account_type.required' => 'Veuillez choisir un type de compte.',
-            'company_name.required_if' => 'Le nom de l\'entreprise est obligatoire pour un compte professionnel.',
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            // Créer l'utilisateur
-            $user = User::create([
-                'first_name' => $validated['first_name'],
-                'last_name' => $validated['last_name'],
-                'email' => $validated['email'],
-                'password' => null, // Pas de mot de passe pour auth Google
-                'phone' => $validated['phone'] ?? null,
-                'account_type' => $validated['account_type'],
-                'google_id' => $validated['google_id'],
-                'avatar' => $validated['avatar'] ?? null,
-                'is_active' => true,
-                'email_verified_at' => now(), // Google vérifie déjà l'email
-            ]);
-
-
-            // Si professionnel → créer entreprise
-            if ($validated['account_type'] === 'professionnel') {
-                $company = Company::create([
-                    'name' => $validated['company_name'],
-                    'ice' => $validated['company_ice'] ?? null,
-                    'address_line1' => $validated['company_address'] ?? null,
-                    'city' => $validated['company_city'] ?? null,
-                    'phone' => $validated['company_phone'] ?? null,
-                    'is_active' => true,
-                ]);
-
-                // Lier user → company avec rôle admin
-                $user->companies()->attach($company->id, [
-                    'role' => 'admin',
-                    'is_active' => true,
-                    'joined_at' => now(),
-                ]);
-
-                $user->assignRole('admin_entreprise');
-            } else {
-                $user->assignRole('particulier');
-            }
-
-            // Générer token
-            $token = $user->createToken('auth_token')->plainTextToken;
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Inscription réussie.',
-                'data' => [
-                    'user' => [
-                        'id' => $user->id,
-                        'first_name' => $user->first_name,
-                        'last_name' => $user->last_name,
-                        'full_name' => $user->fullName(),
-                        'email' => $user->email,
-                        'phone' => $user->phone,
-                        'account_type' => $user->account_type,
-                        'avatar' => $user->avatar,
-                        'roles' => $user->getRoleNames(),
-                    ],
-                    'token' => $token,
-                    'token_type' => 'Bearer',
-                ]
-            ], 201);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de l\'inscription.',
-                'error' => app()->isLocal() ? $e->getMessage() : null,
-            ], 500);
-        }
-    }
-
+    /**
+     * Register - Inscription simplifiée
+     * POST /api/register
+     */
     public function register(Request $request)
     {
         $validated = $request->validate([
@@ -231,12 +158,6 @@ class AuthController extends Controller
                     ->symbols()
             ],
             'phone' => 'nullable|string|max:20',
-            'account_type' => 'required|in:particulier,professionnel',
-            'company_name' => 'required_if:account_type,professionnel|nullable|string|max:255|min:2',
-            'company_ice' => 'nullable|string|max:50',
-            'company_address' => 'nullable|string|max:255',
-            'company_city' => 'nullable|string|max:100',
-            'company_phone' => 'nullable|string|max:20',
         ], [
             'first_name.required' => 'Le prénom est obligatoire.',
             'first_name.min' => 'Le prénom doit contenir au moins 2 caractères.',
@@ -251,10 +172,6 @@ class AuthController extends Controller
             'password.mixed' => 'Le mot de passe doit contenir des majuscules et des minuscules.',
             'password.numbers' => 'Le mot de passe doit contenir au moins un chiffre.',
             'password.symbols' => 'Le mot de passe doit contenir au moins un caractère spécial.',
-            'account_type.required' => 'Veuillez choisir un type de compte.',
-            'account_type.in' => 'Type de compte invalide.',
-            'company_name.required_if' => 'Le nom de l\'entreprise est obligatoire pour un compte professionnel.',
-            'company_name.min' => 'Le nom de l\'entreprise doit contenir au moins 2 caractères.',
         ]);
 
         try {
@@ -267,31 +184,11 @@ class AuthController extends Controller
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'phone' => $validated['phone'] ?? null,
-                'account_type' => $validated['account_type'],
                 'is_active' => true,
             ]);
 
-            // Si professionnel → créer entreprise
-            if ($validated['account_type'] === 'professionnel') {
-                $company = Company::create([
-                    'name' => $validated['company_name'],
-                    'ice' => $validated['company_ice'] ?? null,
-                    'address_line1' => $validated['company_address'] ?? null,
-                    'city' => $validated['company_city'] ?? null,
-                    'phone' => $validated['company_phone'] ?? null,
-                    'is_active' => true,
-                ]);
-
-                $user->companies()->attach($company->id, [
-                    'role' => 'admin',
-                    'is_active' => true,
-                    'joined_at' => now(),
-                ]);
-
-                $user->assignRole('admin_entreprise');
-            } else {
-                $user->assignRole('particulier');
-            }
+            // Assigner le rôle par défaut
+            $user->assignRole('user');
 
             // Générer token
             $token = $user->createToken('auth_token')->plainTextToken;
@@ -309,7 +206,6 @@ class AuthController extends Controller
                         'full_name' => $user->fullName(),
                         'email' => $user->email,
                         'phone' => $user->phone,
-                        'account_type' => $user->account_type,
                         'roles' => $user->getRoleNames(),
                     ],
                     'token' => $token,
@@ -323,7 +219,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'inscription.',
-                'error' => $e->getMessage(),
+                'error' => app()->isLocal() ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -334,8 +230,7 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        $validated = $request->validate(
-            [
+        $validated = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
         ], [
@@ -387,7 +282,6 @@ class AuthController extends Controller
                     'last_name' => $user->last_name,
                     'full_name' => $user->fullName(),
                     'email' => $user->email,
-                    'account_type' => $user->account_type,
                     'avatar' => $user->avatar,
                     'roles' => $user->getRoleNames(),
                     'permissions' => $user->getAllPermissions()->pluck('name'),
@@ -397,7 +291,6 @@ class AuthController extends Controller
             ]
         ], 200);
     }
-
 
     /**
      * Logout
@@ -420,12 +313,6 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
-        
-        // Charger les relations si professionnel
-        $company = null;
-        if ($user->isProfessionnel()) {
-            $company = $user->companies()->first();
-        }
 
         return response()->json([
             'success' => true,
@@ -437,46 +324,28 @@ class AuthController extends Controller
                     'full_name' => $user->fullName(),
                     'email' => $user->email,
                     'phone' => $user->phone,
-                    'account_type' => $user->account_type,
+                    'avatar' => $user->avatar,
                     'is_active' => $user->is_active,
                     'last_login_at' => $user->last_login_at,
                     'roles' => $user->getRoleNames(),
                     'permissions' => $user->getAllPermissions()->pluck('name'),
                 ],
-                'company' => $company ? [
-                    'id' => $company->id,
-                    'name' => $company->name,
-                    'ice' => $company->ice,
-                    'address' => $company->address_line1,
-                    'city' => $company->city,
-                    'phone' => $company->phone,
-                    'logo' => $company->logo,
-                ] : null,
             ]
         ], 200);
     }
 
     /**
      * Update Profile
-     * PUT /api/profile
+     * PUT/POST /api/profile
      */
-    /**
- * Update Profile
- * PUT/POST /api/profile
- */
     public function updateProfile(Request $request)
     {
         $user = $request->user();
-
-        // ✅ Debug: voir ce qui est reçu
-        // \Log::info('Request files:', $request->allFiles());
-        // \Log::info('Request all:', $request->all());
 
         $validated = $request->validate([
             'first_name' => 'sometimes|string|max:100|min:2',
             'last_name' => 'sometimes|string|max:100|min:2',
             'phone' => 'nullable|string|max:20',
-            // ✅ Utiliser 'file' avec 'mimes' au lieu de 'image'
             'avatar' => 'nullable|file|mimes:jpeg,jpg,png,gif,webp|max:2048',
         ], [
             'first_name.min' => 'Le prénom doit contenir au moins 2 caractères.',
@@ -486,12 +355,7 @@ class AuthController extends Controller
             'avatar.max' => 'L\'image ne doit pas dépasser 2 Mo.',
         ]);
 
-        // Log::info('=== UPDATE PROFILE ===');
-        // Log::info('All data:', $request->all());
-        // Log::info('Files:', $request->allFiles());
-        // Log::info('Has avatar:', $request->hasFile('avatar') ? 'YES' : 'NO');
-
-        // ✅ Gérer l'upload de l'avatar séparément
+        // Gérer l'upload de l'avatar
         if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
             // Supprimer l'ancien avatar s'il existe (et n'est pas une URL externe)
             if ($user->avatar && !str_starts_with($user->avatar, 'http')) {
@@ -527,69 +391,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'avatar' => $user->avatar,
-                'account_type' => $user->account_type,
                 'roles' => $user->getRoleNames(),
-            ]
-        ], 200);
-    }
-
-    /**
-     * Update Company Profile (professionnel only)
-     * PUT /api/company/profile
-     */
-    public function updateCompanyProfile(Request $request): JsonResponse
-    {
-        $user = $request->user();
-
-        if (!$user->isProfessionnel()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Action réservée aux professionnels.',
-            ], 403);
-        }
-
-        $company = $user->companies()->first();
-
-        if (!$company) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Entreprise non trouvée.',
-            ], 404);
-        }
-
-        $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
-            'legal_name' => 'nullable|string|max:255',
-            'ice' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:20',
-            'address_line1' => 'nullable|string|max:255',
-            'address_line2' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'logo' => 'nullable|image|max:2048',
-        ]);
-
-        if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('logos', 'public');
-            $validated['logo'] = $path;
-        }
-
-        $company->update($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Profil entreprise mis à jour.',
-            'data' => [
-                'id' => $company->id,
-                'name' => $company->name,
-                'legal_name' => $company->legal_name,
-                'ice' => $company->ice,
-                'email' => $company->email,
-                'phone' => $company->phone,
-                'address_line1' => $company->address_line1,
-                'city' => $company->city,
-                'logo' => $company->logo,
             ]
         ], 200);
     }
@@ -600,7 +402,6 @@ class AuthController extends Controller
      */
     public function changePassword(Request $request)
     {
-        
         $validated = $request->validate([
             'current_password' => 'required|string',
             'new_password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
@@ -612,11 +413,7 @@ class AuthController extends Controller
     
         $user = $request->user();
 
-        // if (!Hash::check($validated['current_password'], $user->password)) {
-        //     throw ValidationException::withMessages([
-        //         'current_password' => ['Le mot de passe actuel est incorrect.'],
-        //     ]);
-        // }
+        // Vérifier le mot de passe actuel (sauf si compte Google sans mot de passe)
         if ($user->password && !Hash::check($validated['current_password'], $user->password)) {
             throw ValidationException::withMessages([
                 'current_password' => ['Le mot de passe actuel est incorrect.'],
@@ -635,7 +432,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Mot de passe changé.',
+            'message' => 'Mot de passe changé avec succès.',
             'data' => [
                 'token' => $token,
                 'token_type' => 'Bearer',

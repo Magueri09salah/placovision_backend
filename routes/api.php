@@ -18,7 +18,7 @@ Route::get('/pdf/{token}', [PublicPdfController::class, 'show']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/auth/google', [AuthController::class, 'googleAuth']);
-Route::post('/auth/google/complete', [AuthController::class, 'googleAuthComplete']);
+// Route::post('/auth/google/complete', [AuthController::class, 'googleAuthComplete']);
 
 // ============ OPTIONS (Public) ============
 Route::get('/quotations/options', [QuotationController::class, 'getOptions']);
@@ -35,7 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/profile', [AuthController::class, 'updateProfile']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
-    Route::put('/company/profile', [AuthController::class, 'updateCompanyProfile']);
+    // Route::put('/company/profile', [AuthController::class, 'updateCompanyProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
 
     Route::get('/projects', [ProjectController::class, 'index']);
