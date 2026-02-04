@@ -69,13 +69,15 @@ class QuotationWork extends Model
     public const PRIX_UNITAIRES = [
         'plaque_ba13_standard' => 24.12,
         'plaque_hydro' => 34.20,
-        'plaque_feu' => 0.00,
+        'plaque_feu' => 42.00,
+        'plaque_outguard' => 97.2,
         'montant_48' => 26.16,
         'montant_70' => 33.00,
         'rail_48' => 21.12,
         'rail_70' => 28.20,
         'fourrure' => 21.12,
-        'isolant' => 18.00,
+        'isolant_verre' => 18.00,
+        // 'isolant_roche' => 47.00,
         'vis_25mm_boite' => 62.40,
         'vis_9mm_boite' => 69.60,
         'suspente' => 0.00,
@@ -93,7 +95,7 @@ class QuotationWork extends Model
         'wc' => ['designation' => 'Plaque Hydro', 'prix_key' => 'plaque_hydro'],
         'bureau' => ['designation' => 'Plaque BA13 standard', 'prix_key' => 'plaque_ba13_standard'],
         'garage' => ['designation' => 'Plaque Feu', 'prix_key' => 'plaque_feu'],
-        'exterieur' => ['designation' => 'Plaque BA13 standard', 'prix_key' => 'plaque_ba13_standard'],
+        'exterieur' => ['designation' => 'plaque_outguard', 'prix_key' => 'plaque_outguard'],
         'autre' => ['designation' => 'Plaque BA13 standard', 'prix_key' => 'plaque_ba13_standard'],
     ];
 
@@ -200,7 +202,8 @@ class QuotationWork extends Model
                 
                 // Rails : haut + bas
                 $addMaterial('Rail R48', self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES['rail_48']);
-                $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant']);
+                $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_verre']);
+                // $addMaterial('Isolant (laine de roche)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_roche']);
                 $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 20)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
                 $addMaterial('Vis TTPC 9 mm', self::visToBoites(self::arrondiSup($surface * 3)), 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
                 $bande = self::bandeToRouleaux(self::arrondiSup($surface * 3));
@@ -231,14 +234,16 @@ class QuotationWork extends Model
                     // Double ossature : × 2
                     $addMaterial($montantLabel, $totalMontants * 2, 'unité', self::PRIX_UNITAIRES[$config['montant']]);
                     $addMaterial($railLabel, $totalRails * 2, 'unité', self::PRIX_UNITAIRES[$config['rail']]);
-                    $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface * 2), 'm²', self::PRIX_UNITAIRES['isolant']);
+                    $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface * 2), 'm²', self::PRIX_UNITAIRES['isolant_verre']);
+                    // $addMaterial('Isolant (laine de roche)', self::arrondiSup($surface * 2), 'm²', self::PRIX_UNITAIRES['isolant_roche']);
                     $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 45)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
                     $addMaterial('Vis TTPC 9 mm', self::visToBoites(self::arrondiSup($surface * 6)), 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
                 } else {
                     // Simple ossature
                     $addMaterial($montantLabel, $totalMontants, 'unité', self::PRIX_UNITAIRES[$config['montant']]);
                     $addMaterial($railLabel, $totalRails, 'unité', self::PRIX_UNITAIRES[$config['rail']]);
-                    $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant']);
+                    $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_verre']);
+                    // $addMaterial('Isolant (laine de roche)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_roche']);
                     $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 40)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
                     $addMaterial('Vis TTPC 9 mm', self::visToBoites(self::arrondiSup($surface * 4)), 'boîte', self::PRIX_UNITAIRES['vis_9mm_boite']);
                 }
