@@ -466,7 +466,7 @@
     </div>
 @endif
 
-<p class="font-weight: 700; font-size: 12px">NB : La durée de validité de ce devis est de 30 jours.</p>
+
 
 {{-- ==================== TOTAUX ==================== --}}
 <div class="totals-wrapper no-break">
@@ -493,7 +493,8 @@
 </div>
 
 <div style="margin-top : 100px">
-    <p><strong>DTU 25.41 :</strong> Les calculs et quantités de ce devis sont établis conformément aux règles de calcul et de mise en œuvre du DTU 25.41 .</p>
+    <p class="font-weight: 700; font-size: 12px">NB : La durée de validité de ce devis est de 30 jours.</p>
+    <p>Les calculs et quantités de ce devis sont établis conformément aux règles de calcul et de mise en œuvre du DTU 25.41 .</p>
 </div>
 
 
