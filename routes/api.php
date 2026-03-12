@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\Api\PublicPdfController;
 use App\Http\Controllers\Api\Admin\ProductCategoryController;
+use App\Http\Controllers\Api\OdooController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,6 +51,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/quotations/{id}', [QuotationController::class, 'show']);
     Route::put('/quotations/{id}', [QuotationController::class, 'update']);
     Route::delete('/quotations/{id}', [QuotationController::class, 'destroy']);
+
+    Route::post('/quotations/{id}/odoo-sync', [OdooController::class, 'sendToOdoo']);
 
      // Actions spéciales sur les devis
     Route::post('/quotations/{id}/duplicate', [QuotationController::class, 'duplicate']);
