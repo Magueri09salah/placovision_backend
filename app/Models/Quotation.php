@@ -37,6 +37,10 @@ class Quotation extends Model
         'accepted_at',
         'notes',
         'internal_notes',
+        'odoo_order_id',
+        'odoo_order_name',
+        'odoo_status',
+        'odoo_synced_at',
     ];
 
     protected $casts = [
@@ -48,6 +52,7 @@ class Quotation extends Model
         'discount_amount' => 'decimal:2',
         'validity_date' => 'date',
         'accepted_at' => 'date',
+        'odoo_synced_at' => 'datetime',
     ];
 
     protected static function boot()

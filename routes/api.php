@@ -25,6 +25,8 @@ Route::post('/auth/google', [AuthController::class, 'googleAuth']);
 Route::get('/quotations/options', [QuotationController::class, 'getOptions']);
 Route::post('/quotations/simulate', [QuotationController::class, 'simulate']);
 
+Route::post('/odoo/webhook/status', [OdooController::class, 'handleStatusWebhook']);
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated user routes

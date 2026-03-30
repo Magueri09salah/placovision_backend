@@ -167,4 +167,63 @@ class OdooController extends Controller
             })->toArray(),
         ];
     }
+
+        public function handleStatusWebhook(Request $request)
+    {
+        // Vérifier la clé API
+        // $apiKey = $request->header('X-PlacoVision-Api-Key');
+        // $expectedKey = config('services.odoo.webhook_key');
+        
+        // if (!$expectedKey || $apiKey !== $expectedKey) {
+        //     Log::warning('Odoo webhook: Invalid API key', [
+        //         'ip' => $request->ip(),
+        //     ]);
+            
+        //     return response()->json([
+        //         'status' => 'error',
+        //         'message' => 'Invalid API key',
+        //     ], 401);
+        // }
+
+        // Valider le payload
+        $validated = $request->validate([
+            'placovision_id' => 'required|string',
+            'odoo_order_id' => 'required|integer',
+            'odoo_order_name' => 'required|string',
+            'status' => 'required|string|in:draft,sent,sale,cancel',
+        ]);
+
+        // Trouver le devis par sa référence PlacoVision
+        $quotation = Quotation::where('reference', $validated['placovision_id'])->first();
+
+        if (!$quotation) {
+            Log::warning('Odoo webhook: Quotation not found', [
+                'placovision_id' => $validated['placovision_id'],
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Quotation not found',
+            ], 404);
+        }
+
+        // Mettre à jour le devis avec les infos Odoo
+        $quotation->update([
+            'odoo_order_id' => $validated['odoo_order_id'],
+            'odoo_order_name' => $validated['odoo_order_name'],
+            'odoo_status' => $validated['status'],
+            'odoo_synced_at' => now(),
+        ]);
+
+        Log::info('Odoo webhook: Status updated', [
+            'quotation_id' => $quotation->id,
+            'reference' => $quotation->reference,
+            'odoo_status' => $validated['status'],
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Status updated successfully',
+        ]);
+    }
 }

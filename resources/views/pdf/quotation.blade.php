@@ -67,6 +67,7 @@
             text-align: right;
         }
         .quote-title {
+            font-family: Arial, sans-serif;
             font-size: 28px;
             font-weight: 900;
             color: #9E3D36;
@@ -298,7 +299,7 @@
     $companyCity = "Marrakech - Maroc";
     $companyPhone = "+212 7 67 91 54 25";
     $companyEmail = "contact@asduplaco.com";
-    $companyIce = "003890458000001";
+    <!-- $companyIce = "003890458000001"; -->
     
     // LOGO - Fixed path: public/images/logo.svg
     $logoBase64 = null;
@@ -332,7 +333,7 @@
                         {{ $companyEmail }}
                     @endif
                     <br>
-                    <strong>ICE:</strong> {{ $companyIce ?? '---' }}
+                    <!-- <strong>ICE:</strong> {{ $companyIce ?? '---' }} -->
                 </div>
             </div>
         </div>
@@ -503,7 +504,7 @@
     <strong>{{ $companyName }}</strong>
     @if($companyAddressLine1) - {{ $companyAddressLine1 }}@endif
     @if($companyCity), {{ $companyCity }}@endif
-    @if($companyIce) - <strong>ICE:</strong> {{ $companyIce }}@endif
+    <!-- @if($companyIce) - <strong>ICE:</strong> {{ $companyIce }}@endif -->
 </div>
 
 </body>

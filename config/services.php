@@ -40,4 +40,8 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
     ],
 
+    // 'odoo' => [
+    //     'webhook_key' => env('ODOO_WEBHOOK_KEY'),
+    // ],
+
 ];
