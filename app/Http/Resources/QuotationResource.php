@@ -34,6 +34,12 @@ class QuotationResource extends JsonResource
             // Statut
             'status' => $this->status,
             'status_label' => $this->status_label,
+
+            // Odoo Integration
+            'odoo_order_id' => $this->odoo_order_id,
+            'odoo_order_name' => $this->odoo_order_name,
+            'odoo_status' => $this->odoo_status,
+            'odoo_synced_at' => $this->odoo_synced_at?->format('Y-m-d H:i:s'),
             
             // Dates
             'validity_date' => $this->validity_date?->format('Y-m-d'),
