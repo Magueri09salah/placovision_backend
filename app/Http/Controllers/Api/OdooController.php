@@ -21,6 +21,122 @@ class OdooController extends Controller
     private const TIMEOUT = 30;
 
     /**
+     * Mapping des produits PlacoVision vers les noms EXACTS Odoo
+     * Les noms doivent correspondre EXACTEMENT aux produits dans Odoo
+     */
+    private const PRODUCT_MAPPING = [
+        // ============ PLAQUES ============
+        'Plaque BA13 standard' => [
+            'category' => 'PLAQUES',
+            'designation' => 'PLAQUE STANDARD – BA13',
+        ],
+        'Plaque Hydro' => [
+            'category' => 'PLAQUES',
+            'designation' => 'PLAQUE HYDRO – BA13',
+        ],
+        'Plaque Feu' => [
+            'category' => 'PLAQUES',
+            'designation' => 'Plaque Feu – BA13',
+        ],
+        'Plaque Outguard' => [
+            'category' => 'PLAQUES',
+            'designation' => 'PLAQUE OUTGUARD – BA13',
+        ],
+        'Plaque haute dureté' => [
+            'category' => 'PLAQUES',
+            'designation' => 'Plaque haute dureté – BA13',
+        ],
+        
+        // ============ STRUCTURE ============
+        'Montant M48' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Montant 48 – Longueur 3 ml',
+        ],
+        'Montant M70' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Montant 70 – Longueur 3 ml',
+        ],
+        'Rail R48' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Rail 48 – Longueur 3 ml',
+        ],
+        'Rail R70' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Rail 70 – Longueur 3 ml',
+        ],
+        'Fourrure' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Fourrure 47 – Longueur 3 ml',
+        ],
+        'Suspente' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Suspente Pivot F47 (100U)',
+        ],
+        'Cornière périphérique' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Cornière d\'Angle 55/50 – Longueur 3 ml',
+        ],
+        'Tige filetée' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Tige filetée – Longueur 1 ml',
+        ],
+        'Pivot' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Suspente Pivot F47 (100U)',
+        ],
+        'Cheville en laiton' => [
+            'category' => 'STRUCTURE',
+            'designation' => 'Cheville laiton',
+        ],
+        
+        // ============ FINITION ============
+        'Bande à joint 150m' => [
+            'category' => 'FINITION',
+            'designation' => 'Bande à joint',
+            'variant' => 'Longueur: 150 m',
+        ],
+        'Bande à joint 300m' => [
+            'category' => 'FINITION',
+            'designation' => 'Bande à joint',
+            'variant' => 'Longueur: 300 m',
+        ],
+        'Enduit' => [
+            'category' => 'FINITION',
+            'designation' => 'Enduit pour plaques de plâtre',
+        ],
+        'Vis TTPC 25 mm' => [
+            'category' => 'FINITION',
+            'designation' => 'Vis TTPC 25 mm',
+        ],
+        'Vis TTPC 9 mm' => [
+            'category' => 'FINITION',
+            'designation' => 'Vis TTPC 9 mm',
+        ],
+        
+        // ============ ISOLATION ============
+        'Isolant (laine de verre)' => [
+            'category' => 'ISOLATION',
+            'designation' => 'Laine de verre',
+        ],
+        'Laine de verre' => [
+            'category' => 'ISOLATION',
+            'designation' => 'Laine de verre',
+        ],
+        'Laine de roche' => [
+            'category' => 'ISOLATION',
+            'designation' => 'Laine de roche',
+        ],
+        'Laine de roche ROCKMUR' => [
+            'category' => 'ISOLATION',
+            'designation' => 'Laine de roche',
+        ],
+        'Laine minérale' => [
+            'category' => 'ISOLATION',
+            'designation' => 'Laine minérale',
+        ],
+    ];
+
+    /**
      * Envoyer un devis vers Odoo
      * 
      * @param Request $request
@@ -45,6 +161,9 @@ class OdooController extends Controller
 
             // Transformer les données pour Odoo
             $payload = $this->transformForOdoo($quotation);
+
+            // Log du payload pour debug
+            Log::info('Odoo payload', ['payload' => $payload]);
 
             // Envoyer vers Odoo
             $response = Http::timeout(self::TIMEOUT)
@@ -82,6 +201,14 @@ class OdooController extends Controller
                     'message' => $odooResponse['message'] ?? 'Erreur retournée par Odoo',
                 ], 400);
             }
+
+            // Mettre à jour le devis avec les infos Odoo
+            $quotation->update([
+                'odoo_order_id' => $odooResponse['order_id'] ?? null,
+                'odoo_order_name' => $odooResponse['order_name'] ?? null,
+                'odoo_status' => 'draft',
+                'odoo_synced_at' => now(),
+            ]);
 
             // Succès
             Log::info('Odoo sync successful', [
@@ -131,6 +258,91 @@ class OdooController extends Controller
     }
 
     /**
+     * Mapper un item PlacoVision vers le format Odoo
+     * 
+     * @param object $item
+     * @return array
+     */
+    private function mapItemToOdoo($item): array
+    {
+        $designation = $item->designation;
+        
+        // Chercher dans le mapping
+        if (isset(self::PRODUCT_MAPPING[$designation])) {
+            $mapping = self::PRODUCT_MAPPING[$designation];
+            
+            $result = [
+                'category' => $mapping['category'],
+                'designation' => $mapping['designation'],
+                'quantity_adjusted' => (float) ($item->quantity_adjusted ?? $item->quantity_calculated ?? 0),
+                'unit_price' => (float) ($item->unit_price ?? 0),
+            ];
+            
+            // Ajouter variant si présent
+            if (isset($mapping['variant'])) {
+                $result['variant'] = $mapping['variant'];
+            }
+            
+            return $result;
+        }
+        
+        // Fallback : déterminer la catégorie automatiquement
+        $category = $this->guessCategory($designation);
+        
+        return [
+            'category' => $category,
+            'designation' => $designation,
+            'quantity_adjusted' => (float) ($item->quantity_adjusted ?? $item->quantity_calculated ?? 0),
+            'unit_price' => (float) ($item->unit_price ?? 0),
+        ];
+    }
+
+    /**
+     * Deviner la catégorie d'un produit non mappé
+     * 
+     * @param string $designation
+     * @return string
+     */
+    private function guessCategory(string $designation): string
+    {
+        $designationLower = strtolower($designation);
+        
+        // PLAQUES
+        if (str_contains($designationLower, 'plaque') || str_contains($designationLower, 'ba13')) {
+            return 'PLAQUES';
+        }
+        
+        // STRUCTURE
+        if (str_contains($designationLower, 'montant') || 
+            str_contains($designationLower, 'rail') || 
+            str_contains($designationLower, 'fourrure') ||
+            str_contains($designationLower, 'suspente') ||
+            str_contains($designationLower, 'cornière') ||
+            str_contains($designationLower, 'tige') ||
+            str_contains($designationLower, 'pivot') ||
+            str_contains($designationLower, 'cheville')) {
+            return 'STRUCTURE';
+        }
+        
+        // ISOLATION
+        if (str_contains($designationLower, 'laine') || 
+            str_contains($designationLower, 'isolant') ||
+            str_contains($designationLower, 'isolation')) {
+            return 'ISOLATION';
+        }
+        
+        // FINITION (par défaut pour vis, bande, enduit)
+        if (str_contains($designationLower, 'vis') || 
+            str_contains($designationLower, 'bande') || 
+            str_contains($designationLower, 'enduit')) {
+            return 'FINITION';
+        }
+        
+        // Catégorie par défaut
+        return 'DIVERS';
+    }
+
+    /**
      * Transformer le devis PlacoVision vers le format Odoo
      * 
      * @param Quotation $quotation
@@ -155,11 +367,7 @@ class OdooController extends Controller
                     'works' => $room->works->map(function ($work) {
                         return [
                             'items' => $work->items->map(function ($item) {
-                                return [
-                                    'designation' => $item->designation,
-                                    'quantity_adjusted' => (float) ($item->quantity_adjusted ?? $item->quantity_calculated ?? 0),
-                                    'unit_price' => (float) ($item->unit_price ?? 0),
-                                ];
+                                return $this->mapItemToOdoo($item);
                             })->toArray(),
                         ];
                     })->toArray(),
@@ -168,9 +376,23 @@ class OdooController extends Controller
         ];
     }
 
-        public function handleStatusWebhook(Request $request)
+    /**
+     * Recevoir les mises à jour de statut depuis Odoo
+     * 
+     * POST /api/odoo/webhook/status
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function handleStatusWebhook(Request $request)
     {
-        // Vérifier la clé API
+        // Log incoming request for debug
+        Log::info('Odoo webhook received', [
+            'payload' => $request->all(),
+            'ip' => $request->ip(),
+        ]);
+
+        // Vérifier la clé API (décommentez en production)
         // $apiKey = $request->header('X-PlacoVision-Api-Key');
         // $expectedKey = config('services.odoo.webhook_key');
         
