@@ -138,7 +138,7 @@ class OdooController extends Controller
      */
     private function transformForOdoo(Quotation $quotation): array
     {
-        $appUrl = config('app.url', 'https://app.placovision.com');
+        $appUrl = config('app.url', 'https://www.placovision.com');
 
         return [
             'placovision_id' => $quotation->reference,
