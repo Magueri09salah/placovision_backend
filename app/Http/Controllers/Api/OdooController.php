@@ -392,21 +392,6 @@ class OdooController extends Controller
             'ip' => $request->ip(),
         ]);
 
-        // Vérifier la clé API (décommentez en production)
-        // $apiKey = $request->header('X-PlacoVision-Api-Key');
-        // $expectedKey = config('services.odoo.webhook_key');
-        
-        // if (!$expectedKey || $apiKey !== $expectedKey) {
-        //     Log::warning('Odoo webhook: Invalid API key', [
-        //         'ip' => $request->ip(),
-        //     ]);
-            
-        //     return response()->json([
-        //         'status' => 'error',
-        //         'message' => 'Invalid API key',
-        //     ], 401);
-        // }
-
         // Valider le payload
         $validated = $request->validate([
             'placovision_id' => 'required|string',
@@ -429,6 +414,9 @@ class OdooController extends Controller
             ], 404);
         }
 
+        // Sauvegarder l'ancien status pour vérifier le changement
+        $oldStatus = $quotation->odoo_status;
+
         // Mettre à jour le devis avec les infos Odoo
         $quotation->update([
             'odoo_order_id' => $validated['odoo_order_id'],
@@ -440,12 +428,292 @@ class OdooController extends Controller
         Log::info('Odoo webhook: Status updated', [
             'quotation_id' => $quotation->id,
             'reference' => $quotation->reference,
-            'odoo_status' => $validated['status'],
+            'old_status' => $oldStatus,
+            'new_status' => $validated['status'],
         ]);
+
+        // ============ CRÉATION AUTOMATIQUE COMMANDE + FACTURE ============
+        // Si le status passe à 'sale' (confirmé), créer la commande et la facture
+        if ($validated['status'] === 'sale' && $oldStatus !== 'sale') {
+            try {
+                $this->createCommandeAndFacture($quotation);
+            } catch (\Exception $e) {
+                Log::error('Odoo webhook: Failed to create commande/facture', [
+                    'quotation_id' => $quotation->id,
+                    'error' => $e->getMessage(),
+                ]);
+                // On ne retourne pas d'erreur car le status a été mis à jour
+            }
+        }
 
         return response()->json([
             'status' => 'success',
             'message' => 'Status updated successfully',
         ]);
+    }
+
+    private function createCommandeAndFacture(Quotation $quotation): void
+    {
+        // Vérifier si une commande existe déjà pour ce devis
+        $existingCommande = \App\Models\Commande::where('quotation_id', $quotation->id)->first();
+        $existingFacture = \App\Models\Facture::whereHas('commande', function ($q) use ($quotation) {
+            $q->where('quotation_id', $quotation->id);
+        })->first();
+        
+        if ($existingCommande) {
+            Log::info('Commande already exists for quotation', [
+                'quotation_id' => $quotation->id,
+                'commande_id' => $existingCommande->id,
+            ]);
+            return;
+        }
+
+        // Créer la commande
+        $commande = \App\Models\Commande::createFromQuotation($quotation);
+
+        Log::info('Commande created from quotation', [
+            'quotation_id' => $quotation->id,
+            'commande_id' => $commande->id,
+            'commande_numero' => $commande->numero,
+        ]);
+
+        if ($existingFacture) {
+            Log::info('Facture already exists for quotation', [
+                'quotation_id' => $quotation->id,
+                'facture_id' => $existingFacture->id,
+            ]);
+            return;
+        }
+
+        // Créer la facture
+        $facture = \App\Models\Facture::createFromCommande($commande);
+
+        Log::info('Facture created from commande', [
+            'commande_id' => $commande->id,
+            'facture_id' => $facture->id,
+            'facture_numero' => $facture->numero,
+        ]);
+    }
+
+    public function notifyAcceptance(Request $request, $quotationId)
+    {
+        try {
+            // Récupérer le devis (vérifie que l'utilisateur est propriétaire)
+            $quotation = Quotation::where('user_id', auth()->id())
+                ->findOrFail($quotationId);
+ 
+            // Vérifier que le devis est synchronisé avec Odoo
+            if (!$quotation->odoo_order_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce devis n\'est pas synchronisé avec Odoo.',
+                ], 422);
+            }
+ 
+            // Vérifier que le statut Odoo est 'sent' (en attente)
+            if ($quotation->odoo_status !== 'sent') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce devis ne peut pas être accepté (statut actuel: ' . $quotation->odoo_status . ').',
+                ], 422);
+            }
+ 
+            // Préparer le payload pour Odoo
+            $payload = [
+                'placovision_id' => $quotation->reference,
+                'odoo_order_id' => $quotation->odoo_order_id,
+                'action' => 'accept',
+                'accepted_at' => now()->toIso8601String(),
+                'accepted_by' => auth()->user()->name ?? 'Client',
+            ];
+ 
+            // Log pour debug
+            Log::info('Sending acceptance to Odoo', [
+                'quotation_id' => $quotationId,
+                'payload' => $payload,
+            ]);
+ 
+            // Envoyer la notification à Odoo
+            // URL de l'endpoint Odoo pour recevoir les acceptations
+            $odooAcceptUrl = 'http://51.178.142.207:8069/api/placovision/accept';
+ 
+            $response = Http::timeout(self::TIMEOUT)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ])
+                ->post($odooAcceptUrl, $payload);
+ 
+            // Vérifier la réponse
+            if ($response->failed()) {
+                Log::error('Odoo acceptance failed', [
+                    'quotation_id' => $quotationId,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+ 
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de communication avec Odoo: ' . $response->status(),
+                ], 502);
+            }
+ 
+            $odooResponse = $response->json();
+ 
+            // Log succès
+            Log::info('Odoo acceptance successful', [
+                'quotation_id' => $quotationId,
+                'odoo_response' => $odooResponse,
+            ]);
+ 
+            // Succès - Note: Le statut sera mis à jour par le webhook Odoo
+            return response()->json([
+                'success' => true,
+                'message' => $odooResponse['message'] ?? 'Acceptation envoyée à Odoo',
+            ]);
+ 
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Devis introuvable',
+            ], 404);
+ 
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('Odoo connection failed for acceptance', [
+                'quotation_id' => $quotationId,
+                'error' => $e->getMessage(),
+            ]);
+ 
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de contacter le serveur Odoo. Réessayez plus tard.',
+            ], 503);
+ 
+        } catch (\Exception $e) {
+            Log::error('Odoo acceptance exception', [
+                'quotation_id' => $quotationId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+ 
+            return response()->json([
+                'success' => false,
+                'message' => "Une erreur inattendue s'est produite.",
+            ], 500);
+        }
+    }
+
+    public function notifyRejection(Request $request, $quotationId)
+    {
+        try {
+            // Récupérer le devis (vérifie que l'utilisateur est propriétaire)
+            $quotation = Quotation::where('user_id', auth()->id())
+                ->findOrFail($quotationId);
+
+            // Vérifier que le devis est synchronisé avec Odoo
+            if (!$quotation->odoo_order_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce devis n\'est pas synchronisé avec Odoo.',
+                ], 422);
+            }
+
+            // Vérifier que le statut Odoo est 'sent' (en attente)
+            if ($quotation->odoo_status !== 'sent') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce devis ne peut pas être refusé (statut actuel: ' . $quotation->odoo_status . ').',
+                ], 422);
+            }
+
+            // Valider la raison (optionnelle)
+            $validated = $request->validate([
+                'reason' => 'nullable|string|max:500',
+            ]);
+
+            // Préparer le payload pour Odoo
+            $payload = [
+                'placovision_id' => $quotation->reference,
+                'odoo_order_id' => $quotation->odoo_order_id,
+                'action' => 'reject',
+                'reason' => $validated['reason'] ?? '',
+                'rejected_at' => now()->toIso8601String(),
+                'rejected_by' => auth()->user()->name ?? 'Client',
+            ];
+
+            // Log pour debug
+            Log::info('Sending rejection to Odoo', [
+                'quotation_id' => $quotationId,
+                'payload' => $payload,
+            ]);
+
+            // Envoyer la notification à Odoo
+            // URL de l'endpoint Odoo pour recevoir les refus
+            $odooRejectUrl = 'http://51.178.142.207:8069/api/placovision/reject';
+
+            $response = Http::timeout(self::TIMEOUT)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ])
+                ->post($odooRejectUrl, $payload);
+
+            // Vérifier la réponse
+            if ($response->failed()) {
+                Log::error('Odoo rejection failed', [
+                    'quotation_id' => $quotationId,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur de communication avec Odoo: ' . $response->status(),
+                ], 502);
+            }
+
+            $odooResponse = $response->json();
+
+            // Log succès
+            Log::info('Odoo rejection successful', [
+                'quotation_id' => $quotationId,
+                'odoo_response' => $odooResponse,
+            ]);
+
+            // Succès - Note: Le statut sera mis à jour par le webhook Odoo
+            return response()->json([
+                'success' => true,
+                'message' => $odooResponse['message'] ?? 'Refus envoyé à Odoo',
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Devis introuvable',
+            ], 404);
+
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('Odoo connection failed for rejection', [
+                'quotation_id' => $quotationId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de contacter le serveur Odoo. Réessayez plus tard.',
+            ], 503);
+
+        } catch (\Exception $e) {
+            Log::error('Odoo rejection exception', [
+                'quotation_id' => $quotationId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => "Une erreur inattendue s'est produite.",
+            ], 500);
+        }
     }
 }

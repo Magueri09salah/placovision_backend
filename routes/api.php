@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\PublicPdfController;
 use App\Http\Controllers\Api\Admin\ProductCategoryController;
 use App\Http\Controllers\Api\OdooController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\CommandeController;
+use App\Http\Controllers\Api\FactureController;
 
 /*
 |--------------------------------------------------------------------------
@@ -65,6 +67,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/quotations/{id}/items/{itemId}/reset', [QuotationController::class, 'resetItem']);
 
     Route::get('/quotations/{id}/pdf', [QuotationController::class, 'exportPdf']);
+
+    Route::post('/quotations/{id}/odoo-accept', [OdooController::class, 'notifyAcceptance']);
+    Route::post('/quotations/{id}/odoo-reject', [OdooController::class, 'notifyRejection']);
+
+    Route::get('/commandes/stats', [CommandeController::class, 'stats']);
+    Route::get('/commandes', [CommandeController::class, 'index']);
+    Route::get('/commandes/{id}', [CommandeController::class, 'show']);
+    Route::patch('/commandes/{id}/status', [CommandeController::class, 'updateStatus']);
+
+    // ============ FACTURES ============
+    Route::get('/factures/stats', [FactureController::class, 'stats']);
+    Route::get('/factures', [FactureController::class, 'index']);
+    Route::get('/factures/{id}', [FactureController::class, 'show']);
+    Route::patch('/factures/{id}/status', [FactureController::class, 'updateStatus']);
+    Route::get('/factures/{id}/pdf', [FactureController::class, 'downloadPdf']);
 });
 
 /*
