@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\OdooController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\CommandeController;
 use App\Http\Controllers\Api\FactureController;
+use App\Http\Controllers\Api\NotificationController;
+use Illuminate\Support\Facades\Broadcast;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,7 +84,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/factures/{id}', [FactureController::class, 'show']);
     Route::patch('/factures/{id}/status', [FactureController::class, 'updateStatus']);
     Route::get('/factures/{id}/pdf', [FactureController::class, 'downloadPdf']);
+
+    // ============ NOTIFICATIONS ============
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::delete('/notifications/clear-read', [NotificationController::class, 'clearRead']);
 });
+
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
 /*
 |--------------------------------------------------------------------------

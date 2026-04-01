@@ -8,6 +8,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+use App\Models\Notification;
+use App\Events\NotificationCreated;
+
 class OdooController extends Controller
 {
     /**
@@ -432,6 +435,8 @@ class OdooController extends Controller
             'new_status' => $validated['status'],
         ]);
 
+        $this->createNotificationForStatusChange($quotation, $oldStatus, $validated['status']);
+
         // ============ CRÉATION AUTOMATIQUE COMMANDE + FACTURE ============
         // Si le status passe à 'sale' (confirmé), créer la commande et la facture
         if ($validated['status'] === 'sale' && $oldStatus !== 'sale') {
@@ -442,7 +447,6 @@ class OdooController extends Controller
                     'quotation_id' => $quotation->id,
                     'error' => $e->getMessage(),
                 ]);
-                // On ne retourne pas d'erreur car le status a été mis à jour
             }
         }
 
@@ -451,6 +455,43 @@ class OdooController extends Controller
             'message' => 'Status updated successfully',
         ]);
     }
+
+    private function createNotificationForStatusChange(Quotation $quotation, ?string $oldStatus, string $newStatus): void
+    {
+        // Éviter les doublons si le status n'a pas changé
+        if ($oldStatus === $newStatus) {
+            return;
+        }
+
+        $notification = null;
+
+        switch ($newStatus) {
+            case 'sent':
+                $notification = Notification::createOdooSent($quotation);
+                break;
+
+            case 'sale':
+                $notification = Notification::createOdooSale($quotation);
+                break;
+
+            case 'cancel':
+                $notification = Notification::createOdooCancel($quotation);
+                break;
+        }
+
+        // Broadcaster la notification via WebSocket
+        if ($notification) {
+            Log::info('Notification created and broadcasting', [
+                'notification_id' => $notification->id,
+                'type' => $notification->type,
+                'user_id' => $notification->user_id,
+            ]);
+
+            broadcast(new NotificationCreated($notification))->toOthers();
+        }
+    }
+
+    
 
     private function createCommandeAndFacture(Quotation $quotation): void
     {
