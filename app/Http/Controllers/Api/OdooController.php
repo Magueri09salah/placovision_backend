@@ -757,4 +757,79 @@ class OdooController extends Controller
             ], 500);
         }
     }
+
+    /**
+ * Recevoir la synchro facture depuis Odoo
+ * POST /api/odoo/webhook/invoice
+ */
+public function handleInvoiceWebhook(Request $request)
+{
+    Log::info('Odoo invoice webhook received', [
+        'payload' => $request->all(),
+    ]);
+
+    $validated = $request->validate([
+        'event_type'     => 'required|string|in:invoice_sync',
+        'placovision_id' => 'required|string',
+        'invoice_name'   => 'required|string',
+        'amount_total'   => 'required|numeric',
+        'portal_url'     => 'nullable|string',
+        'type'           => 'required|string|in:invoice_posted',
+    ]);
+
+    // Find quotation by reference
+    $quotation = Quotation::where('reference', $validated['placovision_id'])->first();
+
+    if (!$quotation) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Quotation not found',
+        ], 404);
+    }
+
+    // Check if facture already exists for this quotation
+    $facture = Facture::where('quotation_id', $quotation->id)->first();
+
+    if ($facture) {
+        // Update existing facture with Odoo data
+        $facture->update([
+            'numero'       => $validated['invoice_name'],
+            'total'        => $validated['amount_total'],
+            'portal_url'   => $validated['portal_url'] ?? null,
+            'status'       => 'en_attente',
+        ]);
+    } else {
+        // Create new facture from Odoo data
+        $facture = Facture::create([
+            'quotation_id'  => $quotation->id,
+            'user_id'       => $quotation->user_id,
+            'numero'        => $validated['invoice_name'],
+            'total'         => $validated['amount_total'],
+            'portal_url'    => $validated['portal_url'] ?? null,
+            'date_emission' => now(),
+            'status'        => 'en_attente',
+            'order'         => Facture::getNextOrder(),
+        ]);
+    }
+
+    // Create notification
+    $notification = Notification::create([
+        'user_id' => $quotation->user_id,
+        'type'    => 'invoice_synced',
+        'title'   => "Facture {$validated['invoice_name']} reçue",
+        'body'    => "Une facture de {$validated['amount_total']} DH a été émise pour le devis {$quotation->reference}.",
+        'data'    => json_encode([
+            'facture_id'  => $facture->id,
+            'quotation_id' => $quotation->id,
+            'portal_url'  => $validated['portal_url'],
+        ]),
+    ]);
+
+    broadcast(new \App\Events\NotificationCreated($notification))->toOthers();
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Invoice synced',
+    ]);
+}
 }

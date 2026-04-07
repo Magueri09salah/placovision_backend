@@ -31,6 +31,9 @@ Route::post('/quotations/simulate', [QuotationController::class, 'simulate']);
 
 Route::post('/odoo/webhook/status', [OdooController::class, 'handleStatusWebhook']);
 
+// In api.php — add this public route next to the existing one:
+Route::post('/odoo/webhook/invoice', [OdooController::class, 'handleInvoiceWebhook']);
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated user routes

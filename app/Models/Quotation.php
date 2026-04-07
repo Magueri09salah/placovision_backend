@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Quotation extends Model
@@ -66,25 +67,16 @@ class Quotation extends Model
             if (empty($quotation->validity_date)) {
                 $quotation->validity_date = now()->addDays(30);
             }
-
             if (empty($quotation->public_token)) {
-            $quotation->public_token = Str::random(32);
-        }
-          
+                $quotation->public_token = Str::random(32);
+            }
         });
     }
 
-    /**
-     * Générer une référence unique pour le devis
-     */
     public static function generateReference(int $userId): string
     {
         $year = date('Y');
-        $count = static::
-            // where('user_id', $userId)
-            whereYear('created_at', $year)
-            ->count() + 1;
-        
+        $count = static::whereYear('created_at', $year)->count() + 1;
         return sprintf('DE-%s-%04d', $year, $count);
     }
 
@@ -115,19 +107,21 @@ class Quotation extends Model
         return $this->hasManyThrough(QuotationWork::class, QuotationRoom::class);
     }
 
-     // ========== QR CODE METHODS ==========
-
     /**
-     * Obtenir l'URL publique du PDF pour le QR code
+     * Facture liée directement au devis
      */
+    public function facture(): HasOne
+    {
+        return $this->hasOne(Facture::class);
+    }
+
+    // ========== QR CODE METHODS ==========
+
     public function getPublicPdfUrlAttribute(): string
     {
         return url("/api/pdf/{$this->public_token}");
     }
 
-    /**
-     * Générer un nouveau token public
-     */
     public function regeneratePublicToken(): void
     {
         $this->update(['public_token' => Str::random(32)]);
@@ -135,9 +129,6 @@ class Quotation extends Model
 
     // ========== METHODES ==========
 
-    /**
-     * Recalculer les totaux du devis
-     */
     public function recalculateTotals(): void
     {
         $totalHt = 0;
@@ -147,7 +138,6 @@ class Quotation extends Model
             $totalHt += $room->subtotal_ht;
         }
 
-        // Appliquer la remise
         if ($this->discount_percent > 0) {
             $this->discount_amount = $totalHt * ($this->discount_percent / 100);
         }
@@ -163,9 +153,6 @@ class Quotation extends Model
         ]);
     }
 
-    /**
-     * Dupliquer le devis
-     */
     public function duplicate(): self
     {
         $newQuotation = $this->replicate(['reference', 'status', 'accepted_at']);
@@ -193,9 +180,6 @@ class Quotation extends Model
         return $newQuotation;
     }
 
-    /**
-     * Labels des statuts
-     */
     public static function getStatusLabels(): array
     {
         return [
@@ -209,7 +193,6 @@ class Quotation extends Model
 
     public function getStatusLabelAttribute(): string
     {
-        // return self::getStatusLabels()[$this->status] ?? $this->status;
         $status = $this->status;
         if (empty($status)) {
             return 'Brouillon';

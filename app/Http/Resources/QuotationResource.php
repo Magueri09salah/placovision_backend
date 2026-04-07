@@ -60,6 +60,8 @@ class QuotationResource extends JsonResource
             // Computed
             'rooms_count' => $this->when($this->rooms, fn() => $this->rooms->count()),
             'works_count' => $this->when($this->rooms, fn() => $this->rooms->sum(fn($r) => $r->works->count())),
+
+            'facture_id' => $this->facture?->id,
         ];
     }
 }

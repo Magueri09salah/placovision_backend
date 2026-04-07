@@ -28,7 +28,6 @@ class QuotationController extends Controller
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc');
 
-        // Filtres
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
@@ -75,7 +74,6 @@ class QuotationController extends Controller
         try {
             DB::beginTransaction();
 
-            // 1. Créer le devis principal
             $quotation = Quotation::create([
                 'user_id' => $user->id,
                 'company_id' => $user->isProfessionnel() ? $user->companies()->first()?->id : null,
@@ -89,7 +87,6 @@ class QuotationController extends Controller
                 'notes' => $request->notes,
             ]);
 
-            // 2. Créer les pièces et travaux
             if ($request->has('rooms')) {
                 foreach ($request->rooms as $roomIndex => $roomData) {
                     $room = QuotationRoom::create([
@@ -99,12 +96,10 @@ class QuotationController extends Controller
                         'sort_order' => $roomIndex,
                     ]);
 
-                    // Créer les travaux pour cette pièce
                     if (isset($roomData['works'])) {
                         foreach ($roomData['works'] as $workIndex => $workData) {
                             $workType = QuotationWork::WORK_TYPES[$workData['work_type']] ?? null;
                             
-                            // ✅ Utiliser longueur et hauteur pour les calculs DTU 25.41
                             $longueur = $workData['longueur'] ?? 0;
                             $hauteur = $workData['hauteur'] ?? 0;
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
@@ -123,7 +118,6 @@ class QuotationController extends Controller
                                 'sort_order' => $workIndex,
                             ]);
 
-                            // ✅ Si des items sont fournis par le frontend, les utiliser
                             if (isset($workData['items']) && is_array($workData['items']) && count($workData['items']) > 0) {
                                 foreach ($workData['items'] as $itemIndex => $itemData) {
                                     $work->items()->create([
@@ -139,18 +133,15 @@ class QuotationController extends Controller
                                 }
                                 $work->recalculateSubtotal();
                             } else {
-                                // Sinon, générer automatiquement les matériaux selon DTU
                                 $work->generateItems();
                             }
                         }
                     }
 
-                    // Recalculer le sous-total de la pièce
                     $room->recalculateSubtotal();
                 }
             }
 
-            // 3. Recalculer les totaux du devis
             $quotation->recalculateTotals();
 
             DB::commit();
@@ -180,7 +171,7 @@ class QuotationController extends Controller
     {
         $user = $request->user();
 
-        $quotation = Quotation::with(['rooms.works.items'])
+        $quotation = Quotation::with(['rooms.works.items', 'facture'])
             ->where('user_id', $user->id)
             ->findOrFail($id);
 
@@ -200,7 +191,6 @@ class QuotationController extends Controller
 
         $quotation = Quotation::where('user_id', $user->id)->findOrFail($id);
 
-        // Vérifier si le devis peut être modifié
         if (!in_array($quotation->status, ['draft'])) {
             return response()->json([
                 'success' => false,
@@ -211,7 +201,6 @@ class QuotationController extends Controller
         try {
             DB::beginTransaction();
 
-            // Mettre à jour les infos de base
             $quotation->update($request->only([
                 'client_name',
                 'client_email',
@@ -224,9 +213,7 @@ class QuotationController extends Controller
                 'notes',
             ]));
 
-            // Si des pièces sont fournies, les mettre à jour
             if ($request->has('rooms')) {
-                // Supprimer les anciennes pièces
                 $quotation->rooms()->delete();
 
                 foreach ($request->rooms as $roomIndex => $roomData) {
@@ -241,7 +228,6 @@ class QuotationController extends Controller
                         foreach ($roomData['works'] as $workIndex => $workData) {
                             $workType = QuotationWork::WORK_TYPES[$workData['work_type']] ?? null;
                             
-                            // ✅ Utiliser longueur et hauteur pour les calculs DTU 25.41
                             $longueur = $workData['longueur'] ?? 0;
                             $hauteur = $workData['hauteur'] ?? 0;
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
@@ -260,7 +246,6 @@ class QuotationController extends Controller
                                 'sort_order' => $workIndex,
                             ]);
 
-                            // ✅ Si des items sont fournis par le frontend, les utiliser
                             if (isset($workData['items']) && is_array($workData['items']) && count($workData['items']) > 0) {
                                 foreach ($workData['items'] as $itemIndex => $itemData) {
                                     $work->items()->create([
@@ -292,7 +277,7 @@ class QuotationController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Devis mis à jour.',
-                'data' => new QuotationResource($quotation->fresh(['rooms.works.items'])),
+                'data' => new QuotationResource($quotation->fresh(['rooms.works.items', 'facture'])),
             ]);
 
         } catch (\Exception $e) {
@@ -383,7 +368,6 @@ class QuotationController extends Controller
 
         $quotation = Quotation::where('user_id', $user->id)->findOrFail($id);
 
-        // Vérifier si le devis peut être modifié
         if (!in_array($quotation->status, ['draft'])) {
             return response()->json([
                 'success' => false,
@@ -391,15 +375,12 @@ class QuotationController extends Controller
             ], 422);
         }
 
-        // Trouver l'item
         $item = QuotationItem::whereHas('work.room', function ($q) use ($quotation) {
             $q->where('quotation_id', $quotation->id);
         })->findOrFail($itemId);
 
-        // Mettre à jour la quantité
         $item->adjustQuantity($request->quantity_adjusted);
 
-        // Recalculer les totaux
         $quotation->recalculateTotals();
 
         return response()->json([
@@ -461,7 +442,6 @@ class QuotationController extends Controller
         $surface = $longueur * $hauteur;
         $epaisseur = $request->epaisseur ?? '72';
 
-        // Créer un work temporaire pour le calcul
         $tempWork = new QuotationWork([
             'work_type' => $workType,
             'epaisseur' => $epaisseur,
@@ -471,7 +451,6 @@ class QuotationController extends Controller
             'unit' => QuotationWork::WORK_TYPES[$workType]['unit'] ?? 'm2',
         ]);
 
-        // Simuler une room pour obtenir le type de plaque correct
         if ($request->room_type) {
             $tempRoom = new QuotationRoom(['room_type' => $request->room_type]);
             $tempWork->setRelation('room', $tempRoom);
@@ -499,7 +478,7 @@ class QuotationController extends Controller
     }
 
     /**
-     * Obtenir les options disponibles (types de pièces, types de travaux)
+     * Obtenir les options disponibles
      * GET /api/quotations/options
      */
     public function getOptions(): JsonResponse
@@ -541,7 +520,6 @@ class QuotationController extends Controller
         $startOfLastMonth = $now->copy()->subMonth()->startOfMonth();
         $endOfLastMonth = $now->copy()->subMonth()->endOfMonth();
 
-        // Statistiques de base
         $stats = [
             'total' => Quotation::where('user_id', $user->id)->count(),
             'draft' => Quotation::where('user_id', $user->id)->where('status', 'draft')->count(),
@@ -557,12 +535,10 @@ class QuotationController extends Controller
                 ->sum('total_ttc'),
         ];
 
-        // Devis ce mois-ci
         $quotationsThisMonth = Quotation::where('user_id', $user->id)
             ->where('created_at', '>=', $startOfMonth)
             ->count();
 
-        // Devis le mois dernier
         $quotationsLastMonth = Quotation::where('user_id', $user->id)
             ->whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])
             ->count();
@@ -570,13 +546,11 @@ class QuotationController extends Controller
         $stats['quotations_this_month'] = $quotationsThisMonth;
         $stats['quotations_trend'] = $quotationsThisMonth - $quotationsLastMonth;
 
-        // Taux de conversion
         $totalProcessed = $stats['accepted'] + $stats['rejected'];
         $stats['conversion_rate'] = $totalProcessed > 0 
             ? round(($stats['accepted'] / $totalProcessed) * 100, 1) 
             : 0;
 
-        // Taux de conversion le mois dernier pour comparaison
         $acceptedLastMonth = Quotation::where('user_id', $user->id)
             ->where('status', 'accepted')
             ->whereBetween('updated_at', [$startOfLastMonth, $endOfLastMonth])
@@ -591,15 +565,12 @@ class QuotationController extends Controller
             : 0;
         $stats['conversion_trend'] = round($stats['conversion_rate'] - $conversionRateLastMonth, 1);
 
-        // ✅ Distribution des types de travaux
         $workTypeLabels = [
             'habillage_mur' => 'Habillage mur',
             'cloison' => 'Cloison',
             'plafond_ba13' => 'Plafond BA13',
-            // Anciens types pour compatibilité
             'cloison_simple' => 'Cloison simple',
             'cloison_double' => 'Cloison double',
-            // 'gaine_technique' => 'Gaine technique',
         ];
 
         $workTypeColors = [
@@ -608,7 +579,6 @@ class QuotationController extends Controller
             'plafond_ba13' => '#10B981',
             'cloison_simple' => '#F59E0B',
             'cloison_double' => '#8B5CF6',
-            // 'gaine_technique' => '#EC4899',
         ];
 
         $workTypeCounts = QuotationWork::whereHas('room.quotation', function ($q) use ($user) {
@@ -626,7 +596,6 @@ class QuotationController extends Controller
             ];
         })->values()->toArray();
 
-        // ✅ Données mensuelles pour le graphique (6 derniers mois)
         $monthlyData = [];
         for ($i = 5; $i >= 0; $i--) {
             $month = $now->copy()->subMonths($i);
@@ -664,7 +633,6 @@ class QuotationController extends Controller
             ->where('user_id', $user->id)
             ->findOrFail($id);
 
-        // Générer le PDF avec les informations DTU
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.quotation', [
             'quotation' => $quotation,
             'dtu_notice' => 'Les calculs et quantités issus de ce document sont établis conformément aux règles de calcul et de mise en œuvre du DTU 25.41. Ils sont destinés à un usage de simulation et peuvent être ajustés selon les contraintes réelles du chantier.',
