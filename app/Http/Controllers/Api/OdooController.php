@@ -7,6 +7,7 @@ use App\Models\Quotation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\Facture;
 
 use App\Models\Notification;
 use App\Events\NotificationCreated;
@@ -832,4 +833,6 @@ public function handleInvoiceWebhook(Request $request)
         'message' => 'Invoice synced',
     ]);
 }
+
+
 }
