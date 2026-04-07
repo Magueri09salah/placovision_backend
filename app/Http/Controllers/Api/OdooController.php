@@ -17,13 +17,11 @@ class OdooController extends Controller
     private const TIMEOUT = 30;
 
     private const PRODUCT_MAPPING = [
-        // ============ PLAQUES ============
         'Plaque BA13 standard' => ['category' => 'PLAQUES', 'designation' => 'PLAQUE STANDARD – BA13'],
         'Plaque Hydro' => ['category' => 'PLAQUES', 'designation' => 'PLAQUE HYDRO – BA13'],
         'Plaque Feu' => ['category' => 'PLAQUES', 'designation' => 'Plaque Feu – BA13'],
         'Plaque Outguard' => ['category' => 'PLAQUES', 'designation' => 'PLAQUE OUTGUARD – BA13'],
         'Plaque haute dureté' => ['category' => 'PLAQUES', 'designation' => 'Plaque haute dureté – BA13'],
-        // ============ STRUCTURE ============
         'Montant M48' => ['category' => 'STRUCTURE', 'designation' => 'Montant 48 – Longueur 3 ml'],
         'Montant M70' => ['category' => 'STRUCTURE', 'designation' => 'Montant 70 – Longueur 3 ml'],
         'Rail R48' => ['category' => 'STRUCTURE', 'designation' => 'Rail 48 – Longueur 3 ml'],
@@ -34,18 +32,23 @@ class OdooController extends Controller
         'Tige filetée' => ['category' => 'STRUCTURE', 'designation' => 'Tige filetée – Longueur 1 ml'],
         'Pivot' => ['category' => 'STRUCTURE', 'designation' => 'Suspente Pivot F47 (100U)'],
         'Cheville en laiton' => ['category' => 'STRUCTURE', 'designation' => 'Cheville laiton'],
-        // ============ FINITION ============
         'Bande à joint 150m' => ['category' => 'FINITION', 'designation' => 'Bande à joint', 'variant' => 'Longueur: 150 m'],
         'Bande à joint 300m' => ['category' => 'FINITION', 'designation' => 'Bande à joint', 'variant' => 'Longueur: 300 m'],
         'Enduit' => ['category' => 'FINITION', 'designation' => 'Enduit pour plaques de plâtre'],
         'Vis TTPC 25 mm' => ['category' => 'FINITION', 'designation' => 'Vis TTPC 25 mm'],
         'Vis TTPC 9 mm' => ['category' => 'FINITION', 'designation' => 'Vis TTPC 9 mm'],
-        // ============ ISOLATION ============
         'Isolant (laine de verre)' => ['category' => 'ISOLATION', 'designation' => 'Laine de verre'],
         'Laine de verre' => ['category' => 'ISOLATION', 'designation' => 'Laine de verre'],
         'Laine de roche' => ['category' => 'ISOLATION', 'designation' => 'Laine de roche'],
         'Laine de roche ROCKMUR' => ['category' => 'ISOLATION', 'designation' => 'Laine de roche'],
         'Laine minérale' => ['category' => 'ISOLATION', 'designation' => 'Laine minérale'],
+    ];
+
+    // Odoo status → Quotation status mapping
+    private const ODOO_TO_QUOTATION_STATUS = [
+        'sent'   => 'sent',
+        'sale'   => 'accepted',
+        'cancel' => 'rejected',
     ];
 
     // ============================================================
@@ -219,8 +222,10 @@ class OdooController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Quotation not found'], 404);
         }
 
-        $oldStatus = $quotation->odoo_status;
+        $oldOdooStatus = $quotation->odoo_status;
+        $oldQuotationStatus = $quotation->status;
 
+        // 1. Update Odoo-specific fields
         $quotation->update([
             'odoo_order_id' => $validated['odoo_order_id'],
             'odoo_order_name' => $validated['odoo_order_name'],
@@ -228,17 +233,33 @@ class OdooController extends Controller
             'odoo_synced_at' => now(),
         ]);
 
-        Log::info('Odoo webhook: Status updated', [
-            'quotation_id' => $quotation->id,
-            'old_status' => $oldStatus,
-            'new_status' => $validated['status'],
-        ]);
+        // 2. Sync quotation status from Odoo status
+        if (isset(self::ODOO_TO_QUOTATION_STATUS[$validated['status']])) {
+            $newQuotationStatus = self::ODOO_TO_QUOTATION_STATUS[$validated['status']];
+            $quotation->update([
+                'status' => $newQuotationStatus,
+                'accepted_at' => $validated['status'] === 'sale' ? now() : $quotation->accepted_at,
+            ]);
 
-        // Create notification
-        $this->createNotificationForStatusChange($quotation, $oldStatus, $validated['status']);
+            Log::info('Quotation status synced from Odoo', [
+                'quotation_id' => $quotation->id,
+                'old_status' => $oldQuotationStatus,
+                'new_status' => $newQuotationStatus,
+                'odoo_status' => $validated['status'],
+            ]);
+        }
 
-        // Sync facture status when Odoo status changes
+        // 3. Create notification
+        $this->createNotificationForStatusChange($quotation, $oldOdooStatus, $validated['status']);
+
+        // 4. Sync facture status (e.g. cancel → annulee)
         $this->syncFactureStatus($quotation, $validated['status']);
+
+        Log::info('Odoo webhook: fully processed', [
+            'quotation_id' => $quotation->id,
+            'odoo_status' => $validated['status'],
+            'quotation_status' => $quotation->status,
+        ]);
 
         return response()->json(['status' => 'success', 'message' => 'Status updated successfully']);
     }
@@ -312,9 +333,7 @@ class OdooController extends Controller
     /**
      * Sync facture status based on Odoo order status change
      *
-     * Odoo status → Facture status:
-     *   sale   → en_attente (facture created/kept active)
-     *   cancel → annulee (facture cancelled)
+     * Odoo cancel → Facture annulee
      */
     private function syncFactureStatus(Quotation $quotation, string $odooStatus): void
     {
@@ -324,22 +343,12 @@ class OdooController extends Controller
             return;
         }
 
-        switch ($odooStatus) {
-            case 'cancel':
-                // Odoo cancelled → cancel the facture too
-                if ($facture->status !== 'annulee') {
-                    $facture->update(['status' => 'annulee']);
-                    Log::info('Facture cancelled via Odoo status sync', [
-                        'facture_id' => $facture->id,
-                        'quotation_id' => $quotation->id,
-                    ]);
-                }
-                break;
-
-            // Add more mappings here if needed, e.g.:
-            // case 'sale':
-            //     // Could re-activate a cancelled facture if Odoo re-confirms
-            //     break;
+        if ($odooStatus === 'cancel' && $facture->status !== 'annulee') {
+            $facture->update(['status' => 'annulee']);
+            Log::info('Facture cancelled via Odoo status sync', [
+                'facture_id' => $facture->id,
+                'quotation_id' => $quotation->id,
+            ]);
         }
     }
 
