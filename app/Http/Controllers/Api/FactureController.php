@@ -16,7 +16,7 @@ class FactureController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Facture::with(['commande.quotation'])
+        $query = Facture::with(['quotation'])
             ->forUser(auth()->id())
             ->latestFirst();
 
@@ -25,16 +25,14 @@ class FactureController extends Controller
             $query->byStatus($request->status);
         }
 
-        // Recherche par numéro
+        // Recherche par numéro ou client
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('numero', 'like', "%{$search}%")
-                  ->orWhereHas('commande', function ($q2) use ($search) {
-                      $q2->where('numero', 'like', "%{$search}%")
-                         ->orWhereHas('quotation', function ($q3) use ($search) {
-                             $q3->where('client_name', 'like', "%{$search}%");
-                         });
+                  ->orWhereHas('quotation', function ($q2) use ($search) {
+                      $q2->where('client_name', 'like', "%{$search}%")
+                         ->orWhere('reference', 'like', "%{$search}%");
                   });
             });
         }
@@ -62,7 +60,7 @@ class FactureController extends Controller
      */
     public function show($id)
     {
-        $facture = Facture::with(['commande.quotation.rooms.works.items', 'commande.user'])
+        $facture = Facture::with(['quotation.rooms.works.items', 'quotation.user'])
             ->forUser(auth()->id())
             ->findOrFail($id);
 
@@ -75,18 +73,12 @@ class FactureController extends Controller
                 'status' => $facture->status,
                 'status_label' => $facture->status_label,
                 'total' => $facture->total,
+                'portal_url' => $facture->portal_url,
                 'order' => $facture->order,
                 'created_at' => $facture->created_at,
                 'updated_at' => $facture->updated_at,
-                'commande' => [
-                    'id' => $facture->commande->id,
-                    'numero' => $facture->commande->numero,
-                    'status' => $facture->commande->status,
-                    'status_label' => $facture->commande->status_label,
-                    'prix_total' => $facture->commande->prix_total,
-                ],
-                'quotation' => $facture->commande->quotation,
-                'user' => $facture->commande->user,
+                'quotation' => $facture->quotation,
+                'user' => $facture->quotation?->user,
             ],
         ]);
     }
@@ -126,15 +118,14 @@ class FactureController extends Controller
      */
     public function downloadPdf($id)
     {
-        $facture = Facture::with(['commande.quotation.rooms.works.items', 'commande.user'])
+        $facture = Facture::with(['quotation.rooms.works.items', 'quotation.user'])
             ->forUser(auth()->id())
             ->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.facture', [
             'facture' => $facture,
-            'commande' => $facture->commande,
-            'quotation' => $facture->commande->quotation,
-            'user' => $facture->commande->user,
+            'quotation' => $facture->quotation,
+            'user' => $facture->quotation?->user,
         ]);
 
         $filename = "facture-{$facture->numero}.pdf";
