@@ -818,7 +818,7 @@ public function handleInvoiceWebhook(Request $request)
         'user_id' => $quotation->user_id,
         'type'    => 'invoice_synced',
         'title'   => "Facture {$validated['invoice_name']} reçue",
-        'body'    => "Une facture de {$validated['amount_total']} DH a été émise pour le devis {$quotation->reference}.",
+        'message'    => "Une facture de {$validated['amount_total']} DH a été émise pour le devis {$quotation->reference}.",
         'data'    => json_encode([
             'facture_id'  => $facture->id,
             'quotation_id' => $quotation->id,
