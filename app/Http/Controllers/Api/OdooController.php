@@ -127,12 +127,18 @@ class OdooController extends Controller
             }
 
             $payload = [
+                'event_type' => 'status_update',
                 'placovision_id' => $quotation->reference,
                 'odoo_order_id' => $quotation->odoo_order_id,
+                "odoo_order_name"=> $quotation->odoo_order_name,
+                "status" => "sale",
                 'action' => 'accept',
                 'accepted_at' => now()->toIso8601String(),
                 'accepted_by' => auth()->user()->name ?? 'Client',
             ];
+
+
+
 
             $response = Http::timeout(self::TIMEOUT)
                 ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json'])
