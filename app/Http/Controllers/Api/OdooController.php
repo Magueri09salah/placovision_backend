@@ -132,9 +132,9 @@ class OdooController extends Controller
                 'odoo_order_id' => $quotation->odoo_order_id,
                 "odoo_order_name"=> $quotation->odoo_order_name,
                 "status" => "sale",
-                'action' => 'accept',
-                'accepted_at' => now()->toIso8601String(),
-                'accepted_by' => auth()->user()->name ?? 'Client',
+                // 'action' => 'accept',
+                // 'accepted_at' => now()->toIso8601String(),
+                // 'accepted_by' => auth()->user()->name ?? 'Client',
             ];
 
 
@@ -142,7 +142,7 @@ class OdooController extends Controller
 
             $response = Http::timeout(self::TIMEOUT)
                 ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json'])
-                ->post('http://51.178.142.207:8069/api/placovision/accept', $payload);
+                ->post('http://vps-fd106920.vps.ovh.net/:8069/api/placovision/order/action', $payload);
 
             if ($response->failed()) {
                 return response()->json(['success' => false, 'message' => 'Erreur de communication avec Odoo: ' . $response->status()], 502);
