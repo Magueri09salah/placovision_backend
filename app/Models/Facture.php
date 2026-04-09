@@ -26,11 +26,13 @@ class Facture extends Model
         'order' => 'integer',
     ];
 
-    public const STATUS_LABELS = [
-        'en_attente' => 'En attente',
-        'payee' => 'Payée',
-        'annulee' => 'Annulée',
-    ];
+public const STATUS_LABELS = [
+    'non_payee'    => 'Non payée',
+    'partielle'    => 'Paiement partiel',
+    'en_cours'     => 'En cours de paiement',
+    'payee'        => 'Payée',
+    'annulee'      => 'Annulée',
+];
 
     // ============ RELATIONS ============
 
@@ -105,7 +107,7 @@ class Facture extends Model
             'date_emission' => now(),
             'quotation_id' => $quotation->id,
             'user_id' => $quotation->user_id,
-            'status' => 'en_attente',
+            'status' => 'non_payee',
             'total' => $quotation->total_price,
             'order' => self::getNextOrder(),
         ]);

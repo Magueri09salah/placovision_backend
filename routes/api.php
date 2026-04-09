@@ -31,6 +31,7 @@ Route::post('/quotations/simulate', [QuotationController::class, 'simulate']);
 Route::post('/odoo/webhook/status', [OdooController::class, 'handleStatusWebhook']);
 Route::post('/odoo/webhook/invoice', [OdooController::class, 'handleInvoiceWebhook']);
 
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated user routes

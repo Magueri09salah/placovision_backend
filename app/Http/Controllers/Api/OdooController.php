@@ -279,66 +279,84 @@ class OdooController extends Controller
      * Invoice webhook — Odoo notifies us when an invoice is posted
      * POST /api/odoo/webhook/invoice
      */
-    public function handleInvoiceWebhook(Request $request)
-    {
-        Log::info('Odoo invoice webhook received', ['payload' => $request->all()]);
+public function handleInvoiceWebhook(Request $request)
+{
+    Log::info('Odoo invoice webhook received', ['payload' => $request->all()]);
 
-        $validated = $request->validate([
-            'event_type'     => 'required|string|in:invoice_sync',
-            'placovision_id' => 'required|string',
-            'invoice_name'   => 'required|string',
-            'amount_total'   => 'required|numeric',
-            'portal_url'     => 'nullable|string',
-            'type'           => 'required|string|in:invoice_posted',
-        ]);
+    $validated = $request->validate([
+        'event_type'         => 'required|string|in:invoice_sync',
+        'placovision_id'     => 'required|string',
+        'invoice_name'       => 'required|string',
+        'amount_total'       => 'required|numeric',
+        'odoo_order_name'    => 'nullable|string',
+        'odoo_state'         => 'nullable|string',
+        'odoo_payment_state' => 'nullable|string|in:not_paid,partial,in_payment,paid,reversed',
+        'type'               => 'required|string',
+        'portal_url'         => 'nullable|string',
+    ]);
 
+    $statusMapping = [
+        'not_paid'   => 'non_payee',
+        'partial'    => 'partielle',
+        'in_payment' => 'en_cours',
+        'paid'       => 'payee',
+        'reversed'   => 'annulee',
+    ];
 
-        $quotation = Quotation::where('reference', $validated['placovision_id'])->first();
+    $quotation = Quotation::where('reference', $validated['placovision_id'])->first();
 
-        if (!$quotation) {
-            return response()->json(['status' => 'error', 'message' => 'Quotation not found'], 404);
-        }
-
-        $facture = Facture::where('numero', $validated['invoice_name'])
-        ->orWhere('quotation_id', $quotation->id)
-        ->first();
-
-        if ($facture) {
-            $facture->update([
-                'numero'     => $validated['invoice_name'],
-                'total'      => $validated['amount_total'],
-                'portal_url' => $validated['portal_url'] ?? null,
-            ]);
-        } else {
-            $facture = Facture::create([
-                'quotation_id'  => $quotation->id,
-                'user_id'       => $quotation->user_id,
-                'numero'        => $validated['invoice_name'],
-                'total'         => $validated['amount_total'],
-                'portal_url'    => $validated['portal_url'] ?? null,
-                'date_emission' => now(),
-                'status'        => 'en_attente',
-                'order'         => Facture::getNextOrder(),
-            ]);
-        }
-
-        // Notification
-        $notification = Notification::create([
-            'user_id' => $quotation->user_id,
-            'type'    => 'invoice_synced',
-            'title'   => "Facture {$validated['invoice_name']} reçue",
-            'message' => "Une facture de {$validated['amount_total']} DH a été émise pour le devis {$quotation->reference}.",
-            'data'    => json_encode([
-                'facture_id'   => $facture->id,
-                'quotation_id' => $quotation->id,
-                'portal_url'   => $validated['portal_url'],
-            ]),
-        ]);
-
-        broadcast(new NotificationCreated($notification))->toOthers();
-
-        return response()->json(['status' => 'success', 'message' => 'Invoice synced']);
+    if (!$quotation) {
+        return response()->json(['status' => 'error', 'message' => 'Quotation not found'], 404);
     }
+
+    $localStatus = $statusMapping[$validated['odoo_payment_state'] ?? 'not_paid'] ?? 'non_payee';
+
+    $facture = Facture::where('numero', $validated['invoice_name'])->first();
+
+    if ($facture) {
+        $facture->update([
+            'total'      => $validated['amount_total'],
+            'portal_url' => $validated['portal_url'] ?? null,
+            'status'     => $localStatus,
+        ]);
+    } else {
+        $facture = Facture::create([
+            'quotation_id'  => $quotation->id,
+            'user_id'       => $quotation->user_id,
+            'numero'        => $validated['invoice_name'],
+            'total'         => $validated['amount_total'],
+            'portal_url'    => $validated['portal_url'] ?? null,
+            'date_emission' => now(),
+            'status'        => $localStatus,
+            'order'         => Facture::getNextOrder(),
+        ]);
+    }
+
+    Log::info('Facture synced', [
+        'facture_id' => $facture->id,
+        'status'     => $localStatus,
+        'odoo_payment_state' => $validated['odoo_payment_state'] ?? null,
+    ]);
+
+    $notification = Notification::create([
+        'user_id' => $quotation->user_id,
+        'type'    => 'invoice_synced',
+        'title'   => "Facture {$validated['invoice_name']} reçue",
+        'message' => "Une facture de {$validated['amount_total']} DH a été émise pour le devis {$quotation->reference}.",
+        'data'    => json_encode([
+            'facture_id'   => $facture->id,
+            'quotation_id' => $quotation->id,
+            'portal_url'   => $validated['portal_url'],
+        ]),
+    ]);
+
+    broadcast(new NotificationCreated($notification))->toOthers();
+
+    return response()->json(['status' => 'success', 'message' => 'Invoice synced']);
+}
+
+
+    
 
     // ============================================================
     //  Private helpers
