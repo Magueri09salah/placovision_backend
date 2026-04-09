@@ -142,7 +142,7 @@ class OdooController extends Controller
 
             $response = Http::timeout(self::TIMEOUT)
                 ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json'])
-                ->post('http://vps-fd106920.vps.ovh.net/:8069/api/placovision/order/action', $payload);
+                ->post('http://vps-fd106920.vps.ovh.net:8069/api/placovision/order/action', $payload);
 
             if ($response->failed()) {
                 return response()->json(['success' => false, 'message' => 'Erreur de communication avec Odoo: ' . $response->status()], 502);
