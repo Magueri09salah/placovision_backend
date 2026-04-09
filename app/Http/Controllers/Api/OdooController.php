@@ -175,18 +175,23 @@ class OdooController extends Controller
             $validated = $request->validate(['reason' => 'nullable|string|max:500']);
 
             $payload = [
+                'event_type' => 'status_update',
                 'placovision_id' => $quotation->reference,
                 'odoo_order_id' => $quotation->odoo_order_id,
-                'action' => 'reject',
-                'reason' => $validated['reason'] ?? '',
-                'rejected_at' => now()->toIso8601String(),
-                'rejected_by' => auth()->user()->name ?? 'Client',
+                "odoo_order_name"=> $quotation->odoo_order_name,
+                "status" => "reject",
+                // 'action' => 'accept',
+                // 'accepted_at' => now()->toIso8601String(),
+                // 'accepted_by' => auth()->user()->name ?? 'Client',
             ];
+
+
+
 
             $response = Http::timeout(self::TIMEOUT)
                 ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json'])
-                ->post('http://51.178.142.207:8069/api/placovision/reject', $payload);
-
+                ->post('http://vps-fd106920.vps.ovh.net:8069/api/placovision/order/action', $payload);
+                
             if ($response->failed()) {
                 return response()->json(['success' => false, 'message' => 'Erreur de communication avec Odoo: ' . $response->status()], 502);
             }
@@ -286,6 +291,7 @@ class OdooController extends Controller
             'portal_url'     => 'nullable|string',
             'type'           => 'required|string|in:invoice_posted',
         ]);
+
 
         $quotation = Quotation::where('reference', $validated['placovision_id'])->first();
 
