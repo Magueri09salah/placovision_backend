@@ -299,7 +299,6 @@
     $companyCity = "Marrakech - Maroc";
     $companyPhone = "+212 7 67 91 54 25";
     $companyEmail = "contact@asduplaco.com";
-    <!-- $companyIce = "003890458000001"; -->
     
     // LOGO - Fixed path: public/images/logo.svg
     $logoBase64 = null;
@@ -333,7 +332,6 @@
                         {{ $companyEmail }}
                     @endif
                     <br>
-                    <!-- <strong>ICE:</strong> {{ $companyIce ?? '---' }} -->
                 </div>
             </div>
         </div>
@@ -343,8 +341,7 @@
                 <span class="pill"><strong>N.</strong> {{ $quotation->reference }}</span>
                 <span class="pill"><strong>Date</strong> {{ $quotation->created_at->format('d/m/Y') }}</span>
                 <br>
-                <!-- <span class="pill"><strong>Validite</strong> {{ $quotation->validity_date ? $quotation->validity_date->format('d/m/Y') : '30 jours' }}</span>
-                <span class="pill status-{{ $quotation->status }}">{{ ucfirst($quotation->status) }}</span> -->
+
             </div>
         </div>
     </div>
@@ -393,7 +390,6 @@
         <thead>
             <tr>
                 <th style="width: 35%;">Designation</th>
-                <!-- <th style="width: 12%;" class="center">Qte calc.</th> -->
                 <th style="width: 12%;" class="center">Qte</th>
                 <th style="width: 10%;" class="center">Unite</th>
                 <th style="width: 15%;" class="right">P.U. HT</th>
@@ -406,9 +402,7 @@
                 <tr class="section-room">
                     <td colspan="5">
                         {{ $roomLabels[$room->room_type] ?? $room->room_name }}
-                        <!-- <span class="muted" style="font-weight: 400; margin-left: 10px;">
-                            Sous-total: {{ $fmtMoney($room->subtotal_ht ?? 0) }}
-                        </span> -->
+
                     </td>
                 </tr>
                 
@@ -429,14 +423,11 @@
                                 <tr>
                                     <td>
                                         {{ $item->designation ?? 'N/A' }}
-                                        <!-- @if($item->is_modified)
-                                            <span class="modified-badge">(modifie)</span>
-                                        @endif -->
+
                                         @if($item->description)
                                             <div class="muted" style="font-size: 9px;">{{ $item->description }}</div>
                                         @endif
                                     </td>
-                                    <!-- <td class="center muted">{{ $fmtQty($item->quantity_calculated ?? 0) }}</td> -->
                                     <td class="center" style="font-weight: 600;">{{ $fmtQty($item->quantity_adjusted ?? 0) }}</td>
                                     <td class="center">{{ $item->unit ?? '' }}</td>
                                     <td class="right">{{ $fmtMoney($item->unit_price ?? 0) }}</td>
@@ -504,7 +495,6 @@
     <strong>{{ $companyName }}</strong>
     @if($companyAddressLine1) - {{ $companyAddressLine1 }}@endif
     @if($companyCity), {{ $companyCity }}@endif
-    <!-- @if($companyIce) - <strong>ICE:</strong> {{ $companyIce }}@endif -->
 </div>
 
 </body>

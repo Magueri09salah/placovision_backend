@@ -287,7 +287,9 @@ class OdooController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Quotation not found'], 404);
         }
 
-        $facture = Facture::where('quotation_id', $quotation->id)->first();
+        $facture = Facture::where('numero', $validated['invoice_name'])
+        ->orWhere('quotation_id', $quotation->id)
+        ->first();
 
         if ($facture) {
             $facture->update([
