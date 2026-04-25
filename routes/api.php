@@ -28,10 +28,10 @@ Route::get('/quotations/options', [QuotationController::class, 'getOptions']);
 Route::post('/quotations/simulate', [QuotationController::class, 'simulate']);
 
 // ============ ODOO WEBHOOKS (Public — called by Odoo) ============
-Route::middleware('odoo.apikey')->prefix('odoo/webhook')->group(function () {
+// Route::middleware('odoo.apikey')->prefix('odoo/webhook')->group(function () {
     Route::post('/status', [OdooController::class, 'handleStatusWebhook']);
     Route::post('/invoice', [OdooController::class, 'handleInvoiceWebhook']);
-});
+// });
 
 
 /*
