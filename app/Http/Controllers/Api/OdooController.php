@@ -54,7 +54,15 @@ class OdooController extends Controller
     // ============================================================
     //  PlacoVision → Odoo (outgoing)
     // ============================================================
-
+    private function odooHeaders(): array
+    {
+        return [
+            'Content-Type'          => 'application/json',
+            'Accept'                => 'application/json',
+            'X-PlacoVision-Api-Key' => config('services.odoo.webhook_api_key'),
+        ];
+    }
+    
     public function sendToOdoo(Request $request, $quotationId)
     {
         try {
@@ -73,7 +81,7 @@ class OdooController extends Controller
             Log::info('Odoo payload', ['payload' => $payload]);
 
             $response = Http::timeout(self::TIMEOUT)
-                ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json'])
+                ->withHeaders($this->odooHeaders())
                 ->post(self::ODOO_API_URL, $payload);
 
             if ($response->failed()) {
@@ -141,8 +149,9 @@ class OdooController extends Controller
 
 
             $response = Http::timeout(self::TIMEOUT)
-                ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json'])
+                ->withHeaders($this->odooHeaders())
                 ->post('http://vps-fd106920.vps.ovh.net:8069/api/placovision/order/action', $payload);
+                
 
             if ($response->failed()) {
                 return response()->json(['success' => false, 'message' => 'Erreur de communication avec Odoo: ' . $response->status()], 502);
@@ -189,7 +198,7 @@ class OdooController extends Controller
 
 
             $response = Http::timeout(self::TIMEOUT)
-                ->withHeaders(['Content-Type' => 'application/json', 'Accept' => 'application/json'])
+                ->withHeaders($this->odooHeaders())
                 ->post('http://vps-fd106920.vps.ovh.net:8069/api/placovision/order/action', $payload);
                 
             if ($response->failed()) {
