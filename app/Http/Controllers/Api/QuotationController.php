@@ -233,7 +233,6 @@ class QuotationController extends Controller
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
                             $epaisseur = $workData['epaisseur'] ?? '72';
                             $ouvertures = $workData['ouvertures'] ?? [];
-                            $isolant = $workData['isolant'] ?? null;
                             
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
@@ -243,7 +242,7 @@ class QuotationController extends Controller
                                 'hauteur' => $hauteur,
                                 'surface' => $surface,
                                 'ouvertures' => $ouvertures,
-                                'isolant'           => $isolant,  
+                                'isolant' => $workData['isolant'] ?? null,  
                                 'unit' => $workType['unit'] ?? 'm2',
                                 'sort_order' => $workIndex,
                             ]);
