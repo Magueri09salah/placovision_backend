@@ -13,6 +13,9 @@ class QuotationWorkResource extends JsonResource
             'id' => $this->id,
             'work_type' => $this->work_type,
             'work_type_label' => $this->work_type_label,
+            'epaisseur' => $this->epaisseur,        // ✅ add
+            'isolant' => $this->isolant ?? 'none',  // ✅ add
+            'ouvertures' => $this->ouvertures ?? [], // ✅ add
             'surface' => (float) $this->surface,
             'longueur' => $this->longueur,
             'hauteur' => $this->hauteur,
