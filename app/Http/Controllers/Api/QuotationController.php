@@ -242,7 +242,6 @@ class QuotationController extends Controller
                                 'hauteur' => $hauteur,
                                 'surface' => $surface,
                                 'ouvertures' => $ouvertures,
-                                'isolant' => $workData['isolant'] ?? null,  
                                 'unit' => $workType['unit'] ?? 'm2',
                                 'sort_order' => $workIndex,
                             ]);
@@ -287,7 +286,7 @@ class QuotationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour.',
-                'error' => $e->getMessage(),
+                'error' => app()->isLocal() ? $e->getMessage() : null,
             ], 500);
         }
     }
