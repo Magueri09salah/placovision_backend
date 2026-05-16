@@ -287,7 +287,7 @@ class QuotationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour.',
-                'error' => app()->isLocal() ? $e->getMessage() : null,
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
