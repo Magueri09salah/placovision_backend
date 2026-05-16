@@ -242,6 +242,7 @@ class QuotationController extends Controller
                                 'hauteur' => $hauteur,
                                 'surface' => $surface,
                                 'ouvertures' => $ouvertures,
+                                'isolant'           => $isolant,  
                                 'unit' => $workType['unit'] ?? 'm2',
                                 'sort_order' => $workIndex,
                             ]);
