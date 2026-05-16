@@ -234,7 +234,7 @@ class QuotationController extends Controller
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
                             $epaisseur = $workData['epaisseur'] ?? '72';
                             $ouvertures = $workData['ouvertures'] ?? [];
-                            
+                            \Log::info('isolant received: ' . ($workData['isolant'] ?? 'NOT SET'));
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
                                 'work_type' => $workData['work_type'],
