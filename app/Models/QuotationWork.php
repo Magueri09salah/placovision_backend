@@ -196,14 +196,14 @@ class QuotationWork extends Model
                 
                 // Montants : formule = 2 × (Lignes - 1) × Montants/ligne
                 // Doublement des lignes intérieures, retrait de 2 par ligne
-                $nbLignesMontants = self::arrondiSup(($L / self::DTU['ENTRAXE']) + 1);
-                $montantsParLigne = max(1, self::arrondiSup($H / self::DTU['PROFIL_LONGUEUR']));
-                $totalMontants = 2 * ($nbLignesMontants - 1) * $montantsParLigne;
+                $nbLignesMontants = ceil(($L / 0.60) + 1);
+                $montantsStructure = (2 * $nbLignesMontants) - 2;
+                $totalMontants = ceil(($montantsStructure * $H) / 3);
                 $addMaterial('Montant M48', $totalMontants, 'unité', self::PRIX_UNITAIRES['montant_48']);
                 
                 // Rails : haut + bas
                 $addMaterial('Rail R48', self::arrondiSup(($L * 2) / self::DTU['PROFIL_LONGUEUR']), 'unité', self::PRIX_UNITAIRES['rail_48']);
-                $addMaterial('Fourrure', self::arrondiSup(($surface / 10) * 4), 'unité', self::PRIX_UNITAIRES['fourrure']);
+                // $addMaterial('Fourrure', self::arrondiSup(($surface / 10) * 4), 'unité', self::PRIX_UNITAIRES['fourrure']);
                 $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_verre']);
                 // $addMaterial('Isolant (laine de roche)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_roche']);
                 $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 20)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
