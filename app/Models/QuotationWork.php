@@ -236,7 +236,7 @@ class QuotationWork extends Model
                     // Double ossature : × 2
                     $addMaterial($montantLabel, $totalMontants * 2, 'unité', self::PRIX_UNITAIRES[$config['montant']]);
                     $addMaterial($railLabel, $totalRails * 2, 'unité', self::PRIX_UNITAIRES[$config['rail']]);
-                    $addMaterial('Fourrure', self::arrondiSup(($surface / 10) * 4) * 2, 'unité', self::PRIX_UNITAIRES['fourrure']);
+                    // $addMaterial('Fourrure', self::arrondiSup(($surface / 10) * 4) * 2, 'unité', self::PRIX_UNITAIRES['fourrure']);
                     $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface * 2), 'm²', self::PRIX_UNITAIRES['isolant_verre']);
                     // $addMaterial('Isolant (laine de roche)', self::arrondiSup($surface * 2), 'm²', self::PRIX_UNITAIRES['isolant_roche']);
                     $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 45)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
@@ -245,7 +245,7 @@ class QuotationWork extends Model
                     // Simple ossature
                     $addMaterial($montantLabel, $totalMontants, 'unité', self::PRIX_UNITAIRES[$config['montant']]);
                     $addMaterial($railLabel, $totalRails, 'unité', self::PRIX_UNITAIRES[$config['rail']]);
-                    $addMaterial('Fourrure', self::arrondiSup(($surface / 10) * 4), 'unité', self::PRIX_UNITAIRES['fourrure']);
+                    // $addMaterial('Fourrure', self::arrondiSup(($surface / 10) * 4), 'unité', self::PRIX_UNITAIRES['fourrure']);
                     $addMaterial('Isolant (laine de verre)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_verre']);
                     // $addMaterial('Isolant (laine de roche)', self::arrondiSup($surface), 'm²', self::PRIX_UNITAIRES['isolant_roche']);
                     $addMaterial('Vis TTPC 25 mm', self::visToBoites(self::arrondiSup($surface * 40)), 'boîte', self::PRIX_UNITAIRES['vis_25mm_boite']);
