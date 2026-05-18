@@ -105,7 +105,9 @@ class QuotationController extends Controller
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
                             $epaisseur = $workData['epaisseur'] ?? '72';
                             $ouvertures = $workData['ouvertures'] ?? [];
-                            
+                            \Log::info('FINAL ISOLANT BEFORE CREATE', [
+    'isolant' => $workData['isolant']
+]);
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
                                 'work_type' => $workData['work_type'],
@@ -118,6 +120,11 @@ class QuotationController extends Controller
                                 'unit' => $workType['unit'] ?? 'm2',
                                 'sort_order' => $workIndex,
                             ]);
+
+
+\Log::info('SAVED ISOLANT', [
+    'isolant' => $work->isolant
+]);
 
                             if (isset($workData['items']) && is_array($workData['items']) && count($workData['items']) > 0) {
                                 foreach ($workData['items'] as $itemIndex => $itemData) {
@@ -234,7 +241,9 @@ class QuotationController extends Controller
                             $surface = $workData['surface'] ?? ($longueur * $hauteur);
                             $epaisseur = $workData['epaisseur'] ?? '72';
                             $ouvertures = $workData['ouvertures'] ?? [];
-                            \Log::info('isolant received: ' . ($workData['isolant'] ?? 'NOT SET'));
+                            \Log::info('WORK DATA DEBUG', [
+                                'workData' => $workData
+                            ]);
                             $work = QuotationWork::create([
                                 'quotation_room_id' => $room->id,
                                 'work_type' => $workData['work_type'],

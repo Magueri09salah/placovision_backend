@@ -19,6 +19,7 @@ class QuotationWork extends Model
         'hauteur',
         'surface',
         'ouvertures',
+        'isolant',
         'unit',
         'subtotal_ht',
         'sort_order',

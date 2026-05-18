@@ -26,7 +26,7 @@ return [
                 'http://placovision.com',
                 'http://www.placovision.com',
                 'http://localhost:5173',
-                'http://localhost:3001',
+                'http://localhost:3000',
         ],
 
     'allowed_origins_patterns' => [],
